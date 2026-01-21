@@ -49,6 +49,20 @@ export interface ListThreadsParams {
   pageToken?: string;
 }
 
+export type GmailMessageListItem = {
+  id: string;
+  threadId: string;
+};
+
+export interface ListMessagesParams {
+  userId?: string;
+  q?: string;
+  labelIds?: string[];
+  includeSpamTrash?: boolean;
+  maxResults?: number;
+  pageToken?: string;
+}
+
 export interface GetThreadParams {
   userId?: string;
   id: string;
@@ -186,6 +200,33 @@ export class GmailClient {
     }
 
     const path = `/users/${encodeURIComponent(userId)}/threads${query.toString() ? `?${query.toString()}` : ''}`;
+    return this.request(path);
+  }
+
+  /**
+   * List messages (sorted by internalDate descending - truly chronological).
+   * Use this to find the actual newest messages regardless of thread creation time.
+   */
+  async listMessages(params: ListMessagesParams): Promise<{
+    messages: GmailMessageListItem[];
+    nextPageToken?: string;
+    resultSizeEstimate?: number;
+  }> {
+    const userId = params.userId ?? 'me';
+    const query = new URLSearchParams();
+    if (params.q) query.set('q', params.q);
+    if (params.includeSpamTrash !== undefined) {
+      query.set('includeSpamTrash', String(params.includeSpamTrash));
+    }
+    if (params.maxResults) query.set('maxResults', String(params.maxResults));
+    if (params.pageToken) query.set('pageToken', params.pageToken);
+    if (params.labelIds?.length) {
+      for (const labelId of params.labelIds) {
+        query.append('labelIds', labelId);
+      }
+    }
+
+    const path = `/users/${encodeURIComponent(userId)}/messages${query.toString() ? `?${query.toString()}` : ''}`;
     return this.request(path);
   }
 

@@ -21,7 +21,7 @@ export const SearchThreadsInputSchema = strictSchema({
     .string()
     .optional()
     .describe(
-      'Gmail search query using Gmail search syntax. Example: "from:alice is:unread newer_than:7d".',
+      'Gmail search query. Omit for newest threads (no filtering). Examples: "from:alice", "is:unread", "newer_than:7d".',
     ),
   labelIds: z
     .array(z.string())
@@ -37,7 +37,9 @@ export const SearchThreadsInputSchema = strictSchema({
     .min(1)
     .max(50)
     .optional()
-    .describe('Max results per page (1-50). Default: 25.'),
+    .describe(
+      'Max results (1-50). Default: 25. Use limit=1 with no query for single latest email.',
+    ),
   cursor: z
     .string()
     .optional()

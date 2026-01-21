@@ -62,8 +62,9 @@ export const searchThreadsTool = defineTool({
     const limit = args.limit ?? 25;
 
     try {
-      // Step 1: Get thread IDs
-      const result = await client.listThreads({
+      // Step 1: Get messages (sorted by internalDate - truly chronological)
+      // This ensures we find the newest MESSAGE, even if it's in an old thread
+      const result = await client.listMessages({
         q: args.query,
         labelIds: args.labelIds,
         includeSpamTrash: args.includeSpamTrash,
@@ -71,9 +72,17 @@ export const searchThreadsTool = defineTool({
         pageToken: args.cursor,
       });
 
-      const threadIds = (result.threads ?? []).map((t) => t.id);
+      // Step 2: Extract unique threadIds preserving order (newest message first)
+      const seenThreads = new Set<string>();
+      const threadIds: string[] = [];
+      for (const msg of result.messages ?? []) {
+        if (!seenThreads.has(msg.threadId)) {
+          seenThreads.add(msg.threadId);
+          threadIds.push(msg.threadId);
+        }
+      }
 
-      // Step 2: Fetch metadata for each thread in parallel
+      // Step 3: Fetch metadata for each thread in parallel
       const threadDetails = await Promise.all(
         threadIds.map((id) =>
           client.getThread({
@@ -84,7 +93,7 @@ export const searchThreadsTool = defineTool({
         ),
       );
 
-      // Step 3: Build enriched items
+      // Step 4: Build enriched items
       const items: ThreadListItem[] = threadDetails.map((thread) => ({
         id: thread.id,
         ...extractThreadMetadata(thread.messages),
