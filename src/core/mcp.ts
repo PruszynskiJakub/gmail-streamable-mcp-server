@@ -1,8 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { config } from '../config/env.js';
-import { registerPrompts } from '../prompts/index.js';
-import { registerResources } from '../resources/index.js';
 import { registerTools } from '../tools/index.js';
 import { logger } from '../utils/logger.js';
 import { buildCapabilities } from './capabilities.js';
@@ -59,8 +57,6 @@ export function buildServer(options: ServerOptions): McpServer {
 
   // Register handlers
   registerTools(server);
-  registerPrompts(server);
-  registerResources(server);
 
   // Register logging/setLevel handler (required when logging capability is advertised)
   server.server.setRequestHandler(SetLevelRequestSchema, async (request) => {
