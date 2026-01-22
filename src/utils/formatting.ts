@@ -201,14 +201,17 @@ export function createSection(
 
 /**
  * Truncate text to a maximum length with ellipsis.
+ * Unicode-safe: handles multi-byte characters (emojis, accents, etc.) correctly.
  *
  * @param text - Text to truncate
- * @param maxLength - Maximum length (default: 100)
+ * @param maxLength - Maximum length in characters (default: 100)
  * @returns Truncated text
  */
 export function truncate(text: string, maxLength = 100): string {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3)}...`;
+  // Use Array.from to correctly handle multi-byte Unicode characters
+  const chars = Array.from(text);
+  if (chars.length <= maxLength) return text;
+  return `${chars.slice(0, maxLength - 3).join('')}...`;
 }
 
 /**

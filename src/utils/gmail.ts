@@ -188,6 +188,22 @@ export function extractDisplayName(from: string | undefined): string | undefined
   return from;
 }
 
+/**
+ * Extract email address from a From/To header.
+ * Handles: "Name" <email@example.com>, Name <email@example.com>, <email@example.com>, email@example.com
+ */
+export function extractEmail(from: string | undefined): string | undefined {
+  if (!from) return undefined;
+  // Match email inside angle brackets
+  const bracketMatch = from.match(/<([^>]+)>/);
+  if (bracketMatch) return bracketMatch[1].trim();
+  // If no brackets, check if the whole string looks like an email
+  if (from.includes('@') && !from.includes('<')) {
+    return from.trim();
+  }
+  return undefined;
+}
+
 export function extractHeaders(headers?: GmailHeader[]): {
   rawHeaders: GmailHeader[];
   parsed: {

@@ -61,7 +61,7 @@ export const toolsMetadata = {
     name: 'create_draft',
     title: 'Create Draft',
     description:
-      'Create a draft from structured fields or raw RFC 2822. Requires recipients if structured. Returns draft id and message metadata.',
+      'Create a draft. For replies: ALWAYS include threadId (from search_threads) to keep draft in conversation. Use email addresses from search results, not guesses. Requires at least one recipient (to/cc/bcc).',
   },
 
   update_draft: {
@@ -100,5 +100,5 @@ export function getToolNames(): string[] {
 export const serverMetadata = {
   title: 'Gmail',
   instructions:
-    'Start with inbox_overview to see connected account and stats. Use threadIds from search results for get_thread or modify_thread. For replies, create_draft with threadId. Batch operations supported (up to 100 threads).',
+    'Start with inbox_overview for account, stats, and recent emails with threadIds. For replies: use threadId and email from inbox_overview or search_threads - never guess email addresses. create_draft requires threadId for threading. Batch modify_thread supports up to 100 threads.',
 } as const;

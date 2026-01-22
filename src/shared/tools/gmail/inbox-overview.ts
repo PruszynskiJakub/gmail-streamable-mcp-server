@@ -4,6 +4,7 @@ import { GmailClient, getAccessToken } from '../../../services/gmail.js';
 import { truncate } from '../../../utils/formatting.js';
 import {
   extractDisplayName,
+  extractEmail,
   getGmailErrorHints,
   pickHeader,
 } from '../../../utils/gmail.js';
@@ -23,9 +24,10 @@ const InboxOverviewInputSchema = z
   .strict();
 
 const ThreadPreviewSchema = z.object({
-  id: z.string(),
+  threadId: z.string().describe('Thread ID for replies/actions.'),
   subject: z.string().optional(),
-  from: z.string().optional(),
+  from: z.string().optional().describe('Sender display name.'),
+  email: z.string().optional().describe('Sender email address for replies.'),
 });
 
 const InboxOverviewOutputSchema = z
@@ -139,10 +141,12 @@ export const inboxOverviewTool = defineTool({
         return threads.map((t) => {
           const first = t.messages?.[0];
           const headers = first?.payload?.headers;
+          const fromHeader = pickHeader(headers, 'From');
           return {
-            id: t.id,
+            threadId: t.id,
             subject: pickHeader(headers, 'Subject'),
-            from: pickHeader(headers, 'From'),
+            from: extractDisplayName(fromHeader),
+            email: extractEmail(fromHeader),
           };
         });
       };
@@ -161,10 +165,13 @@ export const inboxOverviewTool = defineTool({
           : undefined;
 
       const nextSteps = [
-        counts.unread > 0
-          ? `search_threads query="${baseQuery} is:unread" to see all.`
+        recentUnread.length > 0
+          ? 'To reply: use threadId and email from highlights with create_draft.'
           : null,
-        counts.starred > 0 ? `modify_thread to batch archive/star threads.` : null,
+        counts.unread > 0
+          ? `search_threads query="${baseQuery} is:unread" to see all unread.`
+          : null,
+        counts.starred > 0 ? 'modify_thread to batch archive/star threads.' : null,
       ].filter(Boolean) as string[];
 
       const structured = InboxOverviewOutputSchema.parse({
@@ -175,7 +182,7 @@ export const inboxOverviewTool = defineTool({
         meta: nextSteps.length > 0 ? { nextSteps } : undefined,
       });
 
-      // Build human-readable summary
+      // Build human-readable summary with threadId and email for actionability
       const lines: string[] = [
         `${profile.emailAddress} (${period}): ${counts.unread} unread, ${counts.inbox} inbox, ${counts.sent} sent, ${counts.starred} starred`,
       ];
@@ -183,20 +190,20 @@ export const inboxOverviewTool = defineTool({
       if (recentUnread.length > 0) {
         lines.push('', 'Recent unread:');
         for (const t of recentUnread) {
-          const name = extractDisplayName(t.from) ?? '?';
-          const from = truncate(name, 30);
-          const subj = t.subject ? truncate(t.subject, 50) : '(no subject)';
-          lines.push(`  ${from}: ${subj}`);
+          const from = truncate(t.from ?? '?', 25);
+          const subj = t.subject ? truncate(t.subject, 40) : '(no subject)';
+          const email = t.email ? ` <${t.email}>` : '';
+          lines.push(`  ${from}${email}: ${subj} [${t.threadId}]`);
         }
       }
 
       if (starredPreviews.length > 0) {
         lines.push('', 'Starred:');
         for (const t of starredPreviews) {
-          const name = extractDisplayName(t.from) ?? '?';
-          const from = truncate(name, 30);
-          const subj = t.subject ? truncate(t.subject, 50) : '(no subject)';
-          lines.push(`  ${from}: ${subj}`);
+          const from = truncate(t.from ?? '?', 25);
+          const subj = t.subject ? truncate(t.subject, 40) : '(no subject)';
+          const email = t.email ? ` <${t.email}>` : '';
+          lines.push(`  ${from}${email}: ${subj} [${t.threadId}]`);
         }
       }
 

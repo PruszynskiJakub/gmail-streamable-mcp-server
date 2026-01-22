@@ -113,9 +113,10 @@ export type MessageItem = z.infer<typeof MessageItemSchema>;
 
 export const ThreadListItemSchema = z
   .object({
-    id: z.string().describe('Gmail thread id.'),
+    id: z.string().describe('Gmail thread id (use as threadId for replies).'),
     subject: z.string().optional().describe('Email subject line.'),
-    from: z.string().optional().describe('Sender (name and/or email).'),
+    from: z.string().optional().describe('Sender display name.'),
+    email: z.string().optional().describe('Sender email address (use for replies).'),
     date: z.string().optional().describe('Date of the most recent message.'),
     snippet: z.string().optional().describe('Short preview snippet.'),
     messageCount: z.number().optional().describe('Number of messages in thread.'),

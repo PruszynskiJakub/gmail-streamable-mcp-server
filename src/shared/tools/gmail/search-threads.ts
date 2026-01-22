@@ -8,6 +8,8 @@ import { GmailClient, getAccessToken } from '../../../services/gmail.js';
 import { truncate } from '../../../utils/formatting.js';
 import {
   buildGmailThreadUrl,
+  extractDisplayName,
+  extractEmail,
   type GmailMessage,
   getGmailErrorHints,
   pickHeader,
@@ -22,10 +24,12 @@ function extractThreadMetadata(
   const firstMsg = messages?.[0];
   const headers = firstMsg?.payload?.headers;
   const isUnread = Boolean(messages?.some((msg) => msg.labelIds?.includes('UNREAD')));
+  const fromHeader = pickHeader(headers, 'From');
 
   return {
     subject: pickHeader(headers, 'Subject'),
-    from: pickHeader(headers, 'From'),
+    from: extractDisplayName(fromHeader) ?? fromHeader,
+    email: extractEmail(fromHeader),
     date: pickHeader(headers, 'Date'),
     snippet: firstMsg?.snippet,
     messageCount: messages?.length,
@@ -159,13 +163,14 @@ export const searchThreadsTool = defineTool({
         meta,
       });
 
-      // Build human-readable summary with actual useful info
+      // Build human-readable summary with threadId and email for actionability
       const previewLines = items.slice(0, 15).map((thread) => {
         const unread = thread.isUnread ? '[UNREAD] ' : '';
-        const from = thread.from ? truncate(thread.from, 30) : '(unknown)';
-        const subject = thread.subject ? truncate(thread.subject, 50) : '(no subject)';
+        const from = thread.from ? truncate(thread.from, 25) : '(unknown)';
+        const email = thread.email ? ` <${truncate(thread.email, 25)}>` : '';
+        const subject = thread.subject ? truncate(thread.subject, 40) : '(no subject)';
         const count = thread.messageCount ? ` (${thread.messageCount})` : '';
-        return `${unread}${from}: ${subject}${count} [${thread.id}]`;
+        return `${unread}${from}${email}: ${subject}${count} [${thread.id}]`;
       });
 
       const text = summarizeList({
