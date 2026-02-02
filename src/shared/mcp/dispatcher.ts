@@ -3,6 +3,7 @@
  * Used by both Node.js (via SDK wrapper) and Cloudflare Workers (directly).
  */
 
+import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { serverMetadata } from '../../config/metadata.js';
 import { buildCapabilities } from '../../core/capabilities.js';
@@ -116,7 +117,9 @@ async function handleToolsList(): Promise<JsonRpcResult> {
     name: tool.name,
     description: tool.description,
     inputSchema: zodToJsonSchema(tool.inputSchema),
-    ...(tool.outputSchema && { outputSchema: tool.outputSchema }),
+    ...(tool.outputSchema && {
+      outputSchema: zodToJsonSchema(z.object(tool.outputSchema as z.ZodRawShape)),
+    }),
     ...(tool.annotations && { annotations: tool.annotations }),
   }));
 

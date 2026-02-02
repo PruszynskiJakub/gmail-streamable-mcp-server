@@ -118,12 +118,24 @@ export const ThreadListItemSchema = z
     from: z.string().optional().describe('Sender display name.'),
     email: z.string().optional().describe('Sender email address (use for replies).'),
     date: z.string().optional().describe('Date of the most recent message.'),
+    internalDate: z
+      .string()
+      .optional()
+      .describe('Gmail internal date (ms since epoch) of the most recent message.'),
     snippet: z.string().optional().describe('Short preview snippet.'),
     messageCount: z.number().optional().describe('Number of messages in thread.'),
     isUnread: z
       .boolean()
       .optional()
       .describe('Whether the thread has unread messages.'),
+    labelIds: z
+      .array(z.string())
+      .optional()
+      .describe('Union of label ids across messages in the thread.'),
+    labelNames: z
+      .array(z.string())
+      .optional()
+      .describe('Resolved label names for labelIds.'),
     webUrl: z.string().url().optional().describe('Gmail web link for this thread.'),
   })
   .strict();

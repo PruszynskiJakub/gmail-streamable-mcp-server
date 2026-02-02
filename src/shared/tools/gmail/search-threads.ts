@@ -17,23 +17,63 @@ import {
 import { formatErrorWithHints, summarizeList } from '../../../utils/messages.js';
 import { defineTool, type ToolContext, type ToolResult } from '../types.js';
 
-/** Extract key metadata from the first message in a thread */
+function getLatestMessage(
+  messages: GmailMessage[] | undefined,
+): GmailMessage | undefined {
+  if (!messages || messages.length === 0) return undefined;
+  return messages.reduce((latest, message) => {
+    const latestTime = Number(latest.internalDate ?? Number.NEGATIVE_INFINITY);
+    const messageTime = Number(message.internalDate ?? Number.NEGATIVE_INFINITY);
+    return messageTime > latestTime ? message : latest;
+  });
+}
+
+function collectLabelIds(messages: GmailMessage[] | undefined): string[] {
+  const allLabelIds = messages?.flatMap((message) => message.labelIds ?? []) ?? [];
+  return Array.from(new Set(allLabelIds));
+}
+
+function resolveLabelNames(
+  labelIds: string[],
+  labelNameById?: Map<string, string>,
+): string[] | undefined {
+  if (!labelNameById || labelIds.length === 0) return undefined;
+  const names = labelIds.map((labelId) => labelNameById.get(labelId) ?? labelId);
+  return names.length > 0 ? names : undefined;
+}
+
+function formatLabelPreview(thread: ThreadListItem): string {
+  const labelIds = thread.labelIds ?? [];
+  const labelNames = thread.labelNames ?? [];
+  if (labelIds.length === 0 && labelNames.length === 0) return 'labels=none';
+  const names = labelNames.length > 0 ? `labels=${labelNames.join(',')}` : undefined;
+  const ids = labelIds.length > 0 ? `labelIds=${labelIds.join(',')}` : undefined;
+  return [names, ids].filter(Boolean).join(' ');
+}
+
+/** Extract key metadata from the most recent message in a thread */
 function extractThreadMetadata(
   messages: GmailMessage[] | undefined,
+  labelNameById?: Map<string, string>,
 ): Omit<ThreadListItem, 'id' | 'webUrl'> {
-  const firstMsg = messages?.[0];
-  const headers = firstMsg?.payload?.headers;
+  const latestMsg = getLatestMessage(messages);
+  const headers = latestMsg?.payload?.headers;
   const isUnread = Boolean(messages?.some((msg) => msg.labelIds?.includes('UNREAD')));
   const fromHeader = pickHeader(headers, 'From');
+  const labelIds = collectLabelIds(messages);
+  const labelNames = resolveLabelNames(labelIds, labelNameById);
 
   return {
     subject: pickHeader(headers, 'Subject'),
     from: extractDisplayName(fromHeader) ?? fromHeader,
     email: extractEmail(fromHeader),
     date: pickHeader(headers, 'Date'),
-    snippet: firstMsg?.snippet,
+    internalDate: latestMsg?.internalDate,
+    snippet: latestMsg?.snippet,
     messageCount: messages?.length,
     isUnread,
+    labelIds: labelIds.length > 0 ? labelIds : undefined,
+    labelNames,
   };
 }
 
@@ -66,6 +106,15 @@ export const searchThreadsTool = defineTool({
     const limit = args.limit ?? 25;
 
     try {
+      const hints: string[] = [];
+      let labelNameById: Map<string, string> | undefined;
+      try {
+        const { labels } = await client.listLabels();
+        labelNameById = new Map(labels.map((label) => [label.id, label.name]));
+      } catch {
+        hints.push('Label names unavailable; use list_labels to resolve labelIds.');
+      }
+
       // Step 1: Get messages (sorted by internalDate - truly chronological)
       // This ensures we find the newest MESSAGE, even if it's in an old thread
       const result = await client.listMessages({
@@ -100,7 +149,7 @@ export const searchThreadsTool = defineTool({
       // Step 4: Build enriched items
       const items: ThreadListItem[] = threadDetails.map((thread) => ({
         id: thread.id,
-        ...extractThreadMetadata(thread.messages),
+        ...extractThreadMetadata(thread.messages, labelNameById),
         webUrl: buildGmailThreadUrl(thread.id),
       }));
 
@@ -120,8 +169,6 @@ export const searchThreadsTool = defineTool({
           ? [`Use get_thread with threadId="${items[0].id}" to read full conversation.`]
           : []),
       ];
-
-      const hints: string[] = [];
 
       const zeroReasonHints: string[] = [];
       if (items.length === 0) {
@@ -164,13 +211,18 @@ export const searchThreadsTool = defineTool({
       });
 
       // Build human-readable summary with threadId and email for actionability
-      const previewLines = items.slice(0, 15).map((thread) => {
+      const previewLines = items.map((thread) => {
         const unread = thread.isUnread ? '[UNREAD] ' : '';
         const from = thread.from ? truncate(thread.from, 25) : '(unknown)';
         const email = thread.email ? ` <${truncate(thread.email, 25)}>` : '';
         const subject = thread.subject ? truncate(thread.subject, 40) : '(no subject)';
         const count = thread.messageCount ? ` (${thread.messageCount})` : '';
-        return `${unread}${from}${email}: ${subject}${count} [${thread.id}]`;
+        const dateHeader = thread.date ? `date="${thread.date}"` : 'date=missing';
+        const internalDate = thread.internalDate
+          ? `internalDate=${thread.internalDate}`
+          : 'internalDate=missing';
+        const labels = formatLabelPreview(thread);
+        return `${unread}${from}${email}: ${subject}${count} [${thread.id}] ${dateHeader} ${internalDate} ${labels}`;
       });
 
       const text = summarizeList({

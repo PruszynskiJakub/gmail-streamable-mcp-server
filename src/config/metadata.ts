@@ -40,7 +40,7 @@ export const toolsMetadata = {
     name: 'search_threads',
     title: 'Search Threads',
     description:
-      'Search threads by Gmail query and/or labelIds. Results ordered by newest MESSAGE (not thread creation). For latest email: use limit=1 with no query. Returns subject, sender, date, message count, unread status, and web links. Use get_thread to read full message bodies.',
+      'Search threads by Gmail query and/or labelIds. Results ordered by newest MESSAGE (not thread creation). For latest email: use limit=1 with no query. Returns subject, sender, Date header, internalDate, labelIds + label names, message count, unread status, and web links. Use get_thread to read full message bodies.',
   },
 
   get_thread: {
