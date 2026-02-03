@@ -14,8 +14,8 @@ import {
   type McpSessionState,
 } from '../../shared/mcp/dispatcher.js';
 import {
+  buildProviderRefreshConfig,
   ensureFreshToken,
-  type ProviderRefreshConfig,
 } from '../../shared/oauth/refresh.js';
 import type { SessionStore, TokenStore } from '../../shared/storage/interface.js';
 import type { AuthStrategy, ToolContext } from '../../shared/tools/types.js';
@@ -94,27 +94,6 @@ function buildStaticAuthHeaders(config: UnifiedConfig): Record<string, string> {
   }
 
   return headers;
-}
-
-/**
- * Build provider config for token refresh from unified config.
- */
-function buildProviderRefreshConfig(
-  config: UnifiedConfig,
-): ProviderRefreshConfig | undefined {
-  if (
-    !config.PROVIDER_CLIENT_ID ||
-    !config.PROVIDER_CLIENT_SECRET ||
-    !config.PROVIDER_ACCOUNTS_URL
-  ) {
-    return undefined;
-  }
-  return {
-    clientId: config.PROVIDER_CLIENT_ID,
-    clientSecret: config.PROVIDER_CLIENT_SECRET,
-    accountsUrl: config.PROVIDER_ACCOUNTS_URL,
-    tokenUrl: config.OAUTH_TOKEN_URL,
-  };
 }
 
 /**
