@@ -82,7 +82,7 @@ export const searchThreadsTool = defineTool({
   title: toolsMetadata.search_threads.title,
   description: toolsMetadata.search_threads.description,
   inputSchema: SearchThreadsInputSchema,
-  outputSchema: SearchThreadsOutputSchema.shape,
+  outputSchema: SearchThreadsOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -101,7 +101,7 @@ export const searchThreadsTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
     // Default to 25 to balance usefulness vs API calls
     const limit = args.limit ?? 25;
 

@@ -3,8 +3,8 @@
  */
 
 import type { ToolContext } from '../shared/tools/types.js';
+import { sharedLogger as logger } from '../shared/utils/logger.js';
 import type { GmailMessage } from '../utils/gmail.js';
-import { logger } from '../utils/logger.js';
 
 const GMAIL_API_BASE = 'https://www.googleapis.com/gmail/v1';
 
@@ -105,24 +105,18 @@ export interface SendDraftParams {
 }
 
 export function getAccessToken(context?: ToolContext): string | undefined {
-  const direct = context?.providerToken || context?.provider?.accessToken;
-  if (direct) return direct;
-
-  const header =
-    context?.resolvedHeaders?.authorization ||
-    context?.authHeaders?.authorization ||
-    context?.authHeaders?.Authorization;
-
-  if (!header) return undefined;
-  const match = header.match(/^\s*Bearer\s+(.+)$/i);
-  return match?.[1];
+  // This value is populated only after the MCP resource token has been validated
+  // and resolved through the project-specific AuthInfo.extra seam.
+  return context?.providerToken;
 }
 
 export class GmailClient {
   private accessToken: string;
+  private signal?: AbortSignal;
 
-  constructor(accessToken: string) {
+  constructor(accessToken: string, signal?: AbortSignal) {
     this.accessToken = accessToken;
+    this.signal = signal;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -134,7 +128,11 @@ export class GmailClient {
     };
 
     try {
-      const response = await fetch(url, { ...options, headers });
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: options.signal ?? this.signal,
+      });
 
       if (!response.ok) {
         let errorMessage = `Gmail API error: ${response.status} ${response.statusText}`;

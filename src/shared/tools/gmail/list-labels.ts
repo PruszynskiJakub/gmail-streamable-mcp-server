@@ -11,7 +11,7 @@ export const listLabelsTool = defineTool({
   title: toolsMetadata.list_labels.title,
   description: toolsMetadata.list_labels.description,
   inputSchema: ListLabelsInputSchema,
-  outputSchema: ListLabelsOutputSchema.shape,
+  outputSchema: ListLabelsOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -29,7 +29,7 @@ export const listLabelsTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
 
     try {
       const result = await client.listLabels();

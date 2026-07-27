@@ -1,7 +1,7 @@
 // CIMD (Client ID Metadata Document) support
 // Fetches and validates client metadata from HTTPS URLs per SEP-991
 
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import { sharedLogger as logger } from '../utils/logger.js';
 import { assertSsrfSafe } from './ssrf.js';
 
@@ -175,7 +175,7 @@ export async function fetchClientMetadata(
       logger.warning('cimd', {
         message: 'Invalid metadata schema',
         url: clientIdUrl,
-        errors: parsed.error.errors,
+        errors: parsed.error.issues,
       });
       return { success: false, error: `invalid_metadata: ${parsed.error.message}` };
     }

@@ -48,8 +48,8 @@ function buildLabelChanges(args: {
 
   for (const [action, mapping] of Object.entries(ACTION_LABELS)) {
     if (!actions[action]) continue;
-    mapping.add?.forEach((label) => add.add(label));
-    mapping.remove?.forEach((label) => remove.add(label));
+    for (const label of mapping.add ?? []) add.add(label);
+    for (const label of mapping.remove ?? []) remove.add(label);
   }
 
   const overlap = Array.from(add).filter((label) => remove.has(label));
@@ -80,7 +80,7 @@ export const modifyThreadTool = defineTool({
   title: toolsMetadata.modify_thread.title,
   description: toolsMetadata.modify_thread.description,
   inputSchema: ModifyThreadInputSchema,
-  outputSchema: ModifyThreadOutputSchema.shape,
+  outputSchema: ModifyThreadOutputSchema,
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -120,7 +120,7 @@ export const modifyThreadTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
     const threadIds = args.threadIds;
 
     // Process all threads in parallel

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import { toolsMetadata } from '../../../config/metadata.js';
 import { GmailClient, getAccessToken } from '../../../services/gmail.js';
 import { truncate } from '../../../utils/formatting.js';
@@ -69,7 +69,7 @@ export const inboxOverviewTool = defineTool({
   title: toolsMetadata.inbox_overview.title,
   description: toolsMetadata.inbox_overview.description,
   inputSchema: InboxOverviewInputSchema,
-  outputSchema: InboxOverviewOutputSchema.shape,
+  outputSchema: InboxOverviewOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -88,7 +88,7 @@ export const inboxOverviewTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
     const days = args.days ?? 7;
     const baseQuery = `newer_than:${days}d`;
     const period = `last ${days} day${days === 1 ? '' : 's'}`;

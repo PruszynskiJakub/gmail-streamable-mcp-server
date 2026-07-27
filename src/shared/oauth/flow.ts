@@ -348,7 +348,7 @@ export async function handleProviderCallback(
   }
 
   const expiresAt = Date.now() + Number(data.expires_in ?? 3600) * 1000;
-  const scopes = String(data.scope || '')
+  const scopes = String(data.scope || providerConfig.oauthScopes || '')
     .split(/\s+/)
     .filter(Boolean);
 
@@ -513,6 +513,9 @@ export async function handleToken(
           rec.provider.refresh_token,
           providerConfig,
         );
+        if (!provider.scopes?.length) {
+          provider.scopes = [...(rec.provider.scopes ?? [])];
+        }
       } catch (error) {
         logger.error('oauth_token', {
           message: 'Provider refresh failed',

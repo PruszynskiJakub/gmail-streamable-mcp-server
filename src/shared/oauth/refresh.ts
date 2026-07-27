@@ -263,6 +263,9 @@ export async function ensureFreshToken(
     });
     return { accessToken: record.provider.access_token, wasRefreshed: false };
   }
+  if (!result.tokens.scopes?.length) {
+    result.tokens.scopes = [...(record.provider.scopes ?? [])];
+  }
 
   // Determine if RS access token should rotate
   // Only rotate when provider refresh_token changed (security trade-off for KV quota)

@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "gmail-mcp-local",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "NODE_ENV": "development",
+    "MCP_NAME": "gmail-mcp",
+    "MCP_TITLE": "Gmail",
+    "MCP_VERSION": "1.0.0",
+    "MCP_PUBLIC_URL": "http://localhost:8787/mcp",
+    "MCP_ALLOWED_HOSTS": "localhost,127.0.0.1,[::1]",
+    "MCP_ALLOWED_ORIGIN_HOSTNAMES": "localhost,127.0.0.1,[::1]",
+    "MCP_LEGACY_MODE": "stateless",
+    "MCP_MAX_REQUEST_BYTES": "1048576",
+    "AUTH_ENABLED": "true",
+    "AUTH_STRATEGY": "oauth",
+    "PROVIDER_ACCOUNTS_URL": "https://accounts.google.com",
+    "OAUTH_AUTHORIZATION_URL": "https://accounts.google.com/o/oauth2/v2/auth",
+    "OAUTH_TOKEN_URL": "https://oauth2.googleapis.com/token",
+    "OAUTH_REVOCATION_URL": "https://oauth2.googleapis.com/revoke",
+    "OAUTH_SCOPES": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify",
+    "OAUTH_EXTRA_AUTH_PARAMS": "access_type=offline&prompt=consent",
+    "OAUTH_REDIRECT_URI": "http://localhost:8787/oauth/callback",
+    "OAUTH_REDIRECT_ALLOWLIST": "alice://oauth/callback,http://localhost:8787/oauth/callback",
+    "CIMD_ENABLED": "true",
+    "LOG_LEVEL": "info"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "TOKENS",
+      "id": "00000000000000000000000000000000"
+    }
+  ]
+}

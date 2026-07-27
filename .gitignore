@@ -63,6 +63,7 @@ wrangler.toml
 web_modules/
 
 ## Test artifacts
+*.cpuprofile
 playwright-report/
 test-results/
 cypress/videos/

@@ -15,7 +15,7 @@ export const getThreadTool = defineTool({
   title: toolsMetadata.get_thread.title,
   description: toolsMetadata.get_thread.description,
   inputSchema: GetThreadInputSchema,
-  outputSchema: GetThreadOutputSchema.shape,
+  outputSchema: GetThreadOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -34,7 +34,7 @@ export const getThreadTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
     const format = args.format ?? 'metadata';
     const maxBodyChars = args.maxBodyChars ?? 20000;
 

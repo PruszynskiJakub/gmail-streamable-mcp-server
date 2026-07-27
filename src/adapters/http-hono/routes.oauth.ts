@@ -1,8 +1,5 @@
-// Hono adapter for OAuth routes
-// Provider-agnostic version from Spotify MCP
-
-import type { HttpBindings } from '@hono/node-server';
 import { Hono } from 'hono';
+import { boundedRequest } from '../../http/body.js';
 import type { UnifiedConfig } from '../../shared/config/env.js';
 import { handleRegister, handleRevoke } from '../../shared/oauth/endpoints.js';
 import {
@@ -22,132 +19,123 @@ import {
 import type { TokenStore } from '../../shared/storage/interface.js';
 import { sharedLogger as logger } from '../../shared/utils/logger.js';
 
-export function buildOAuthRoutes(
-  store: TokenStore,
-  config: UnifiedConfig,
-): Hono<{ Bindings: HttpBindings }> {
-  const app = new Hono<{ Bindings: HttpBindings }>();
+export function buildOAuthRoutes(store: TokenStore, config: UnifiedConfig): Hono {
+  const app = new Hono();
   const providerConfig = buildProviderConfig(config);
   const oauthConfig = buildOAuthConfig(config);
 
-  app.get('/authorize', async (c) => {
-    logger.debug('oauth_hono', { message: 'Authorize request received' });
-
+  app.get('/authorize', async (context) => {
     try {
-      const url = new URL(c.req.url);
-      const input = parseAuthorizeInput(url);
-      const options = {
-        ...buildFlowOptions(url, config),
-        cimd: {
-          enabled: config.CIMD_ENABLED,
-          timeoutMs: config.CIMD_FETCH_TIMEOUT_MS,
-          maxBytes: config.CIMD_MAX_RESPONSE_BYTES,
-          allowedDomains: config.CIMD_ALLOWED_DOMAINS,
-        },
-      };
-
+      const url = new URL(context.req.url);
       const result = await handleAuthorize(
-        input,
+        parseAuthorizeInput(url),
         store,
         providerConfig,
         oauthConfig,
-        options,
+        {
+          ...buildFlowOptions(url, config),
+          cimd: {
+            enabled: config.CIMD_ENABLED,
+            timeoutMs: config.CIMD_FETCH_TIMEOUT_MS,
+            maxBytes: config.CIMD_MAX_RESPONSE_BYTES,
+            allowedDomains: config.CIMD_ALLOWED_DOMAINS,
+          },
+        },
       );
-
-      logger.info('oauth_hono', { message: 'Authorize redirect' });
-      return c.redirect(result.redirectTo, 302);
+      return context.redirect(result.redirectTo, 302);
     } catch (error) {
-      logger.error('oauth_hono', {
-        message: 'Authorize failed',
+      logger.error('oauth', {
+        message: 'Authorization failed',
         error: (error as Error).message,
       });
-      return c.text((error as Error).message || 'Authorization failed', 400);
+      return context.text((error as Error).message || 'Authorization failed', 400);
     }
   });
 
-  app.get('/oauth/callback', async (c) => {
-    logger.debug('oauth_hono', { message: 'Callback request received' });
-
+  app.get('/oauth/callback', async (context) => {
     try {
-      const url = new URL(c.req.url);
+      const url = new URL(context.req.url);
       const { code, state } = parseCallbackInput(url);
-
       if (!code || !state) {
-        return c.text('invalid_callback: missing code or state', 400);
+        return context.text('invalid_callback: missing code or state', 400);
       }
-
-      const options = buildFlowOptions(url, config);
-
       const result = await handleProviderCallback(
         { providerCode: code, compositeState: state },
         store,
         providerConfig,
         oauthConfig,
-        options,
+        buildFlowOptions(url, config),
       );
-
-      logger.info('oauth_hono', { message: 'Callback success' });
-      return c.redirect(result.redirectTo, 302);
+      return context.redirect(result.redirectTo, 302);
     } catch (error) {
-      logger.error('oauth_hono', {
-        message: 'Callback failed',
+      logger.error('oauth', {
+        message: 'Provider callback failed',
         error: (error as Error).message,
       });
-      return c.text((error as Error).message || 'Callback failed', 500);
+      return context.text((error as Error).message || 'Callback failed', 500);
     }
   });
 
-  app.post('/token', async (c) => {
-    logger.debug('oauth_hono', { message: 'Token request received' });
-
+  app.post('/token', async (context) => {
     try {
-      const form = await parseTokenInput(c.req.raw);
-      const tokenInput = buildTokenInput(form);
-
+      const bounded = await boundedRequest(
+        context.req.raw,
+        config.MCP_MAX_REQUEST_BYTES,
+      );
+      if (bounded.rejection) return bounded.rejection;
+      const tokenInput = buildTokenInput(await parseTokenInput(bounded.request));
       if ('error' in tokenInput) {
-        return c.json({ error: tokenInput.error }, 400);
+        return context.json({ error: tokenInput.error }, 400);
       }
-
-      // Pass providerConfig for refresh_token grant to enable provider token refresh
-      const result = await handleToken(tokenInput, store, providerConfig);
-
-      logger.info('oauth_hono', { message: 'Token exchange success' });
-      return c.json(result);
+      return context.json(await handleToken(tokenInput, store, providerConfig));
     } catch (error) {
-      logger.error('oauth_hono', {
+      logger.error('oauth', {
         message: 'Token exchange failed',
         error: (error as Error).message,
       });
-      return c.json({ error: (error as Error).message || 'invalid_grant' }, 400);
+      return context.json({ error: (error as Error).message || 'invalid_grant' }, 400);
     }
   });
 
-  app.post('/revoke', async (c) => {
-    const result = await handleRevoke();
-    return c.json(result);
-  });
+  app.post('/revoke', async (context) => context.json(await handleRevoke()));
 
-  app.post('/register', async (c) => {
+  app.post('/register', async (context) => {
     try {
-      const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
-      const url = new URL(c.req.url);
-
-      logger.debug('oauth_hono', { message: 'Register request' });
-
+      const bounded = await boundedRequest(
+        context.req.raw,
+        config.MCP_MAX_REQUEST_BYTES,
+      );
+      if (bounded.rejection) return bounded.rejection;
+      const body = (await bounded.request.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
       const result = await handleRegister(
         {
           redirect_uris: Array.isArray(body.redirect_uris)
-            ? (body.redirect_uris as string[])
+            ? body.redirect_uris.filter(
+                (value): value is string => typeof value === 'string',
+              )
             : undefined,
+          grant_types: Array.isArray(body.grant_types)
+            ? body.grant_types.filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : undefined,
+          response_types: Array.isArray(body.response_types)
+            ? body.response_types.filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : undefined,
+          client_name:
+            typeof body.client_name === 'string' ? body.client_name : undefined,
         },
-        url.origin,
+        new URL(context.req.url).origin,
         config.OAUTH_REDIRECT_URI,
       );
-
-      logger.info('oauth_hono', { message: 'Client registered' });
-      return c.json(result, 201);
+      return context.json(result, 201);
     } catch (error) {
-      return c.json({ error: (error as Error).message }, 400);
+      return context.json({ error: (error as Error).message }, 400);
     }
   });
 

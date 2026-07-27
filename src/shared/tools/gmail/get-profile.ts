@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import { toolsMetadata } from '../../../config/metadata.js';
 import { GmailClient, getAccessToken } from '../../../services/gmail.js';
 import { getGmailErrorHints } from '../../../utils/gmail.js';
@@ -18,7 +18,7 @@ export const getProfileTool = defineTool({
   title: toolsMetadata.get_profile.title,
   description: toolsMetadata.get_profile.description,
   inputSchema: GetProfileInputSchema,
-  outputSchema: GetProfileOutputSchema.shape,
+  outputSchema: GetProfileOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -37,7 +37,7 @@ export const getProfileTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
 
     try {
       const profile = await client.getProfile();

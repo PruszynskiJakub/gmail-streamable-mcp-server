@@ -282,10 +282,9 @@ export class KvSessionStore implements SessionStore {
   }
 
   async ensure(sessionId: string): Promise<void> {
-    // Memory-only session ensure - no KV writes
-    // Sessions are ephemeral per-isolate state; the actual session state
-    // (sessionStateMap, cancellationRegistry) is already memory-only.
-    // This saves 1 write operation per request with new session ID.
+    // Preserve the existing memory-only ensure behavior for callers that use
+    // SessionStore as OAuth/application state. MCP transport sessions do not
+    // use this store in the v2 fetch-native runtime.
     const existing = await this.fallback.get(sessionId);
     if (!existing) {
       await this.fallback.put(sessionId, { created_at: Date.now() });

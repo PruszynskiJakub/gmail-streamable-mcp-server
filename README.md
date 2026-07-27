@@ -1,21 +1,18 @@
 # Gmail MCP Server
 
-Streamable HTTP MCP server for Gmail — search threads, read messages, manage drafts, and organize your inbox.
+Fetch-native MCP server for Gmail — search threads, read messages, manage drafts, and organize your inbox on Bun or Cloudflare Workers.
 
 Author: [overment](https://x.com/_overment)
 
+> [!IMPORTANT]
+> This branch targets the **candidate** `2026-07-28` protocol using exact `@modelcontextprotocol/server@2.0.0-beta.5` and `@modelcontextprotocol/client@2.0.0-beta.5`. These packages are prereleases. Do not claim final `2026-07-28` conformance until the dated specification and stable packages are published and the final-delta validation passes.
+
 > [!WARNING]
-> You connect this server to your MCP client at your own responsibility. Language models can make mistakes, misinterpret instructions, or perform unintended actions. Review tool outputs, verify results in Gmail, and prefer small, incremental writes.
->
-> The HTTP/OAuth layer is designed for convenience during development, not production-grade security. If deploying remotely, harden it: proper token validation, secure storage, TLS termination, strict CORS/origin checks, rate limiting, audit logging, and compliance with Google OAuth policies.
+> You connect this server to your MCP client at your own responsibility. Language models can make mistakes or perform unintended actions. Review tool outputs, verify writes in Gmail, and prefer small, incremental changes. Remote deployments still need TLS, rate limiting, audit logging, secret management, and compliance with Google OAuth policies.
 
-## Notice
-
-This repo works in two ways:
-- As a **Node/Hono server** for local workflows
-- As a **Cloudflare Worker** for remote interactions
-
-For production Cloudflare deployments, see [Remote Model Context Protocol servers (MCP)](https://blog.cloudflare.com/remote-model-context-protocol-servers-mcp).
+The same tool and OAuth product behavior is available in two runtimes:
+- **Bun** with the MCP resource server on `PORT` and OAuth proxy on `PORT + 1`
+- **Cloudflare Workers** with MCP, discovery, and OAuth proxy routes on one origin
 
 ## Motivation
 
@@ -37,8 +34,10 @@ In short, it's not a direct mirror of Gmail's API — it's tailored so AI agents
 - ✅ **Labels** — Discover label IDs for filtering and organizing
 - ✅ **Modify** — Batch archive, star, mark read/unread (up to 100 threads)
 - ✅ **Drafts** — Create, update, and send drafts with reply threading
-- ✅ **OAuth 2.1** — Secure PKCE flow with RS token mapping
-- ✅ **Dual Runtime** — Node.js/Bun or Cloudflare Workers
+- ✅ **OAuth 2.1** — CIMD + PKCE proxy with opaque MCP resource-token mapping
+- ✅ **Credential separation** — MCP bearer tokens are never sent to Gmail; provider refresh tokens stay in storage
+- ✅ **Dual Runtime** — Bun and Cloudflare Workers
+- ✅ **MCP v2 candidate** — Fetch-native `2026-07-28` with SDK stateless legacy fallback
 
 ### Design Principles
 
@@ -52,7 +51,7 @@ In short, it's not a direct mirror of Gmail's API — it's tailored so AI agents
 
 ## Installation
 
-Prerequisites: [Bun](https://bun.sh/), Node.js 24+, a Google account, and a Gmail-enabled Google Cloud project. For remote: a [Cloudflare](https://dash.cloudflare.com) account.
+Prerequisites: [Bun](https://bun.sh/) 1.2+, a Google account, and a Gmail-enabled Google Cloud project. Cloudflare deployment also requires a Cloudflare account and Wrangler 4.
 
 ### Ways to Run (Pick One)
 
@@ -115,10 +114,18 @@ bun dev
 
 ### 2. Cloudflare Worker (Local Dev)
 
+Create an ignored `.dev.vars` for local Worker secrets:
+
+```dotenv
+PROVIDER_CLIENT_ID=your-client-id.apps.googleusercontent.com
+PROVIDER_CLIENT_SECRET=your-client-secret
+RS_TOKENS_ENC_KEY=your-base64url-32-byte-key
+```
+
+Then run:
+
 ```bash
-bun x wrangler secret put PROVIDER_CLIENT_ID
-bun x wrangler secret put PROVIDER_CLIENT_SECRET
-bun x wrangler dev --local | cat
+bun run dev:worker
 ```
 
 Endpoint: `http://127.0.0.1:8787/mcp`
@@ -130,10 +137,10 @@ Endpoint: `http://127.0.0.1:8787/mcp`
 1. Create KV namespace:
 
 ```bash
-bun x wrangler kv:namespace create TOKENS
+bun x wrangler kv namespace create TOKENS
 ```
 
-2. Update `wrangler.toml` with KV namespace ID
+2. Replace the placeholder URLs, host allowlist, and KV namespace ID in `wrangler.jsonc`.
 
 3. Set secrets:
 
@@ -148,7 +155,7 @@ bun x wrangler secret put RS_TOKENS_ENC_KEY
 
 > **Note:** `RS_TOKENS_ENC_KEY` encrypts OAuth tokens stored in KV (AES-256-GCM).
 
-4. Update redirect URI and allowlist in `wrangler.toml`
+4. Update the redirect URI and allowlist in `wrangler.jsonc`.
 
 5. Add Workers URL to your Google OAuth app's redirect URIs
 
@@ -186,6 +193,47 @@ bunx @modelcontextprotocol/inspector
 ```
 
 For Cloudflare, replace URL with `https://<worker-name>.<account>.workers.dev/mcp`.
+
+---
+
+## Token and request flow
+
+OAuth authorization state is product state, not an MCP transport session. It remains in `TokenStore` implementations while every MCP request receives a fresh SDK server.
+
+```mermaid
+sequenceDiagram
+  participant C as MCP client
+  participant AS as Gmail MCP OAuth proxy
+  participant G as Google OAuth
+  participant S as TokenStore (file/KV + memory)
+  participant R as /mcp resource server
+  participant API as Gmail API
+
+  C->>AS: GET /authorize (CIMD client_id, PKCE challenge)
+  AS->>S: Save short-lived authorization transaction
+  AS->>G: Redirect to Google authorization
+  G->>AS: GET /oauth/callback (provider code)
+  AS->>G: Exchange code for Google access + refresh tokens
+  AS->>S: Keep provider tokens in authorization transaction
+  AS->>C: Redirect with one-time proxy authorization code
+  C->>AS: POST /token (code + PKCE verifier)
+  AS->>S: Store opaque MCP access/refresh -> provider-token record
+  AS-->>C: Opaque MCP access + refresh tokens
+  C->>R: MCP request with opaque MCP bearer
+  R->>S: Validate record; refresh provider access if near expiry
+  S-->>R: Provider access token only
+  R->>API: Gmail request with provider access token
+  API-->>R: Gmail response
+  R-->>C: MCP tool result
+```
+
+Trust boundary rules:
+
+- The inbound MCP bearer is retained only as `AuthInfo.token` by the SDK auth boundary; tools cannot read or forward it. OAuth mode always requires a valid opaque RS record; the older permissive `AUTH_REQUIRE_RS` and `AUTH_ALLOW_DIRECT_BEARER` toggles were removed.
+- The current Gmail access token is exposed to tools only as `AuthInfo.extra.gmailAccessToken` through the project-specific context adapter.
+- Google refresh tokens never enter `AuthInfo`, tool context, MCP content, or structured output.
+- `/authorize`, `/oauth/callback`, `/token`, `/revoke`, `/register`, and discovery routes are dispatched before and outside MCP handling.
+- Modern requests and legacy fallback are stateless and never create `Mcp-Session-Id`.
 
 ---
 
@@ -495,12 +543,14 @@ Modified 2/2 threads. -INBOX -UNREAD
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/mcp` | POST | MCP JSON-RPC 2.0 |
-| `/mcp` | GET | SSE stream (Node.js only) |
+| `/mcp` | GET / DELETE | `405` (MCP protocol sessions are not used) |
 | `/health` | GET | Health check |
 | `/.well-known/oauth-authorization-server` | GET | OAuth AS metadata |
-| `/.well-known/oauth-protected-resource` | GET | OAuth RS metadata |
+| `/.well-known/oauth-protected-resource/mcp` | GET | RFC 9728 OAuth protected-resource metadata |
+| `/.well-known/oauth-protected-resource` | GET | Backward-compatible OAuth RS metadata alias |
+| `/.well-known/oauth-authorization-server` | GET | OAuth authorization-server metadata |
 
-OAuth (PORT+1 for Node):
+OAuth proxy (`PORT + 1` on Bun; same origin on Workers):
 - `GET /authorize` — Start OAuth flow
 - `GET /oauth/callback` — Provider callback
 - `POST /token` — Token exchange
@@ -511,11 +561,22 @@ OAuth (PORT+1 for Node):
 ## Development
 
 ```bash
-bun dev           # Start with hot reload
-bun run typecheck # TypeScript check
-bun run lint      # Lint code
-bun run build     # Production build
-bun start         # Run production
+bun dev                     # Bun MCP + OAuth proxy
+bun run typecheck           # Bun and Worker TypeScript checks
+bun run test                # Protocol, OAuth, provider, and storage tests
+bun run lint                # Biome check
+bun run format:check        # Formatting check
+bun run build               # Bun bundle
+bun run build:worker        # Wrangler dry-run bundle
+bun run types:worker:check  # Generated binding type check
+bun start                   # Run Bun production entry
+```
+
+For an actual local workerd protocol check, start `wrangler.test.jsonc` and run the official-client probe in another terminal:
+
+```bash
+bunx wrangler dev --config wrangler.test.jsonc --env-file wrangler.types.env
+bun run test:workerd-client
 ```
 
 ---
@@ -526,7 +587,7 @@ bun start         # Run production
 src/
 ├── shared/
 │   ├── tools/
-│   │   └── gmail/           # Gmail tools (shared for Node + Workers)
+│   │   └── gmail/           # Gmail tools shared by Bun and Workers
 │   │       ├── get-profile.ts
 │   │       ├── inbox-overview.ts
 │   │       ├── list-labels.ts
@@ -539,18 +600,25 @@ src/
 │   │       └── send-draft.ts
 │   ├── oauth/               # OAuth flow (PKCE, discovery)
 │   └── storage/             # Token storage (file, KV, memory)
+├── core/                    # Fresh-server MCP v2 factory/runtime
+├── http/                    # Fetch-native security, auth gate, and routing
 ├── services/
-│   └── gmail.ts             # Gmail API client
-├── schemas/
-│   ├── inputs.ts            # Zod input schemas
-│   └── outputs.ts           # Zod output schemas
-├── config/
-│   └── metadata.ts          # Server + tool descriptions
-├── index.ts                 # Node.js entry
+│   └── gmail.ts             # Unchanged Gmail API client behavior
+├── schemas/                 # Complete Zod 4 input/output schemas
+├── index.ts                 # Bun dual-port entry
 └── worker.ts                # Workers entry
 ```
 
 ---
+
+## Candidate status, storage compatibility, and rollback
+
+- Candidate baseline: protocol `2026-07-28`, server/client `2.0.0-beta.5`, Zod 4. This is not the final-release gate.
+- Pre-migration repository baseline: `48d4ca49f3dba5621bb739608bcb2e483f1c14d6`.
+- `FileTokenStore` remains version 1 and reads the existing plaintext or whole-file AES-256-GCM representation.
+- Worker KV keys and values are unchanged: `rs:access:*`, `rs:refresh:*`, `txn:*`, `code:*`, and `session:*`; optional AES-GCM wrapping is unchanged.
+- No migration rewrites, deletes, or invalidates provider refresh tokens or OAuth records; existing FileTokenStore expiry and provider-refresh behavior is preserved.
+- Roll back application code by redeploying the recorded baseline (or reverting the migration changes) without clearing `.data`, KV, MCP resource tokens, or Google refresh tokens. Both versions can read the same stored records.
 
 ## Troubleshooting
 
@@ -564,7 +632,7 @@ src/
 | Draft update fails | Drafts are immutable; updates replace the underlying message. |
 | OAuth does not start (Worker) | `curl -i -X POST https://<worker>/mcp` should return 401 with `WWW-Authenticate`. |
 | Empty search results | Check query syntax; use `list_labels` to verify label IDs. |
-| KV namespace error | Run `wrangler kv:namespace create TOKENS` and update wrangler.toml. |
+| KV namespace error | Run `wrangler kv namespace create TOKENS` and update `wrangler.jsonc`. |
 
 ---
 

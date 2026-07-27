@@ -59,7 +59,7 @@ export const createDraftTool = defineTool({
   title: toolsMetadata.create_draft.title,
   description: toolsMetadata.create_draft.description,
   inputSchema: CreateDraftInputSchema,
-  outputSchema: CreateDraftOutputSchema.shape,
+  outputSchema: CreateDraftOutputSchema,
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -93,7 +93,7 @@ export const createDraftTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
 
     try {
       const result = await client.createDraft({

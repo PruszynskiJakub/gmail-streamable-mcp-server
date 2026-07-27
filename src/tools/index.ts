@@ -1,237 +1,84 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ZodObject, ZodRawShape, ZodTypeAny } from 'zod';
-import { contextRegistry, getCurrentAuthContext } from '../core/context.js';
-import { sharedTools, type ToolContext } from '../shared/tools/registry.js';
-import type { RequestContext } from '../types/context.js';
-import { createCancellationToken } from '../utils/cancellation.js';
-import { logger } from '../utils/logger.js';
+import type {
+  AuthInfo,
+  McpServer,
+  ServerContext,
+  StandardSchemaWithJSON,
+} from '@modelcontextprotocol/server';
+import { gmailAccessTokenFromAuthInfo } from '../shared/auth/opaque-token-verifier.js';
+import type { UnifiedConfig } from '../shared/config/env.js';
+import { sharedTools } from '../shared/tools/registry.js';
+import type { ToolContext } from '../shared/tools/types.js';
+import { sharedLogger as logger } from '../shared/utils/logger.js';
 
-/**
- * Extract the shape from a Zod schema, handling ZodEffects (refined schemas).
- * ZodEffects wraps the inner schema when using .refine(), .transform(), etc.
- */
-function getSchemaShape(schema: ZodTypeAny): ZodRawShape | undefined {
-  // If it's a ZodObject, return its shape directly
-  if ('shape' in schema && typeof schema.shape === 'object') {
-    return (schema as ZodObject<ZodRawShape>).shape;
-  }
+function safeAuthInfo(
+  authInfo: AuthInfo | undefined,
+): ToolContext['authInfo'] | undefined {
+  if (!authInfo) return undefined;
+  return {
+    clientId: authInfo.clientId,
+    scopes: [...authInfo.scopes],
+    expiresAt: authInfo.expiresAt,
+    resource: authInfo.resource,
+  };
+}
 
-  // If it's a ZodEffects (from .refine(), .transform(), etc.), unwrap to get inner schema
-  if ('_def' in schema && schema._def && typeof schema._def === 'object') {
-    const def = schema._def as { schema?: ZodTypeAny; innerType?: ZodTypeAny };
-    // ZodEffects stores the inner schema in _def.schema
-    if (def.schema) {
-      return getSchemaShape(def.schema);
-    }
-    // Some Zod versions use _def.innerType
-    if (def.innerType) {
-      return getSchemaShape(def.innerType);
-    }
-  }
-
+function staticProviderToken(config: UnifiedConfig): string | undefined {
+  if (config.AUTH_STRATEGY === 'bearer') return config.BEARER_TOKEN;
+  if (config.AUTH_STRATEGY === 'api_key') return config.API_KEY;
   return undefined;
 }
 
-/**
- * Register all tools with the MCP server.
- * Combines shared tools (cross-runtime) with Node-specific tools.
- */
-export function registerTools(server: McpServer): void {
-  const registeredNames: string[] = [];
+function toolContext(config: UnifiedConfig, context: ServerContext): ToolContext {
+  const authInfo = context.http?.authInfo;
+  return {
+    signal: context.mcpReq.signal,
+    meta: {
+      progressToken: context.mcpReq._meta?.progressToken,
+      requestId: String(context.mcpReq.id),
+    },
+    authStrategy: config.AUTH_STRATEGY,
+    providerToken:
+      config.AUTH_STRATEGY === 'oauth'
+        ? gmailAccessTokenFromAuthInfo(authInfo)
+        : staticProviderToken(config),
+    authInfo: safeAuthInfo(authInfo),
+  };
+}
 
-  // Register shared tools (work in both Node and Workers)
+type PublicTool = (typeof sharedTools)[number];
+type ObjectSchema = StandardSchemaWithJSON<
+  Record<string, unknown>,
+  Record<string, unknown>
+>;
+
+function registerPublicTool(
+  server: McpServer,
+  config: UnifiedConfig,
+  tool: PublicTool,
+): void {
+  const inputSchema = tool.inputSchema as ObjectSchema;
+  const outputSchema = tool.outputSchema as ObjectSchema;
+
+  server.registerTool(
+    tool.name,
+    {
+      description: tool.description,
+      inputSchema,
+      outputSchema,
+      annotations: tool.annotations,
+    },
+    async (args, context) => tool.handler(args as never, toolContext(config, context)),
+  );
+}
+
+/** Register the preserved Gmail tool surface in deterministic order. */
+export function registerTools(server: McpServer, config: UnifiedConfig): void {
   for (const tool of sharedTools) {
-    try {
-      const wrappedHandler = createWrappedHandler(server, tool.handler);
-
-      // Shared tools use Zod schemas - extract shape for SDK compatibility
-      // Handle both ZodObject and ZodEffects (refined schemas)
-      const inputSchemaShape = getSchemaShape(tool.inputSchema);
-      if (!inputSchemaShape) {
-        logger.error('tools', {
-          message: 'Failed to extract schema shape',
-          toolName: tool.name,
-        });
-        throw new Error(`Failed to extract schema shape for tool: ${tool.name}`);
-      }
-
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: inputSchemaShape,
-          ...(tool.outputSchema && { outputSchema: tool.outputSchema }),
-          ...(tool.annotations && { annotations: tool.annotations }),
-        },
-        wrappedHandler as Parameters<typeof server.registerTool>[2],
-      );
-
-      registeredNames.push(tool.name);
-      logger.debug('tools', { message: 'Registered shared tool', toolName: tool.name });
-    } catch (error) {
-      logger.error('tools', {
-        message: 'Failed to register shared tool',
-        toolName: tool.name,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
-  }
-
-  // Register Node-specific tools
-  const nodeTools: Array<{
-    definition: {
-      name: string;
-      description: string;
-      inputSchema: unknown;
-      handler: (args: unknown, context?: RequestContext) => Promise<unknown>;
-    };
-    outputSchema?: unknown;
-  }> = [
-    // Add Node-specific tools here if needed
-  ];
-
-  for (const { definition, outputSchema } of nodeTools) {
-    try {
-      const wrappedHandler = createLegacyWrappedHandler(server, definition.handler);
-
-      server.registerTool(
-        definition.name,
-        {
-          description: definition.description,
-          inputSchema: definition.inputSchema as unknown as Parameters<
-            typeof server.registerTool
-          >[1]['inputSchema'],
-          ...(outputSchema && { outputSchema }),
-        },
-        wrappedHandler as Parameters<typeof server.registerTool>[2],
-      );
-
-      registeredNames.push(definition.name);
-      logger.debug('tools', {
-        message: 'Registered Node tool',
-        toolName: definition.name,
-      });
-    } catch (error) {
-      logger.error('tools', {
-        message: 'Failed to register Node tool',
-        toolName: definition.name,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
+    registerPublicTool(server, config, tool);
   }
 
   logger.info('tools', {
-    message: `Registered ${registeredNames.length} tools`,
-    toolNames: registeredNames,
-    sharedCount: sharedTools.length,
-    nodeSpecificCount: nodeTools.length,
+    message: `Registered ${sharedTools.length} Gmail tools`,
+    toolNames: sharedTools.map((tool) => tool.name),
   });
-}
-
-/**
- * Create a wrapped handler for shared tools.
- * Adapts the shared ToolContext to the SDK's RequestHandlerExtra.
- *
- * SDK provides `extra.requestId` which we use to look up auth context from registry.
- */
-function createWrappedHandler(
-  _server: McpServer,
-  handler: (args: Record<string, unknown>, context: ToolContext) => Promise<unknown>,
-) {
-  return async (
-    args: Record<string, unknown>,
-    extra?: {
-      requestId?: string | number;
-      _meta?: { progressToken?: string | number };
-      signal?: AbortSignal;
-    },
-  ) => {
-    // SDK provides requestId at top level of extra
-    const requestId = extra?.requestId;
-
-    // Look up auth context from registry (stored by MCP routes with auth info)
-    let existingContext = requestId ? contextRegistry.get(requestId) : undefined;
-
-    // Fallback to AsyncLocalStorage if requestId not available
-    // This is the primary method since MCP SDK doesn't pass requestId to tool handlers
-    if (!existingContext) {
-      existingContext = getCurrentAuthContext();
-    }
-
-    // Build shared ToolContext
-    const context: ToolContext = {
-      sessionId: String(requestId || crypto.randomUUID()),
-      signal: extra?.signal,
-      meta: {
-        progressToken: extra?._meta?.progressToken,
-        requestId: requestId ? String(requestId) : undefined,
-      },
-      // Auth from context registry
-      authStrategy: existingContext?.authStrategy,
-      providerToken: existingContext?.providerToken,
-      provider: existingContext?.provider
-        ? {
-            accessToken: existingContext.provider.access_token,
-            refreshToken: existingContext.provider.refresh_token,
-            expiresAt: existingContext.provider.expires_at,
-            scopes: existingContext.provider.scopes,
-          }
-        : undefined,
-      resolvedHeaders: existingContext?.resolvedHeaders,
-      authHeaders: existingContext?.authHeaders as Record<string, string> | undefined,
-    };
-
-    try {
-      const result = await handler(args, context);
-      return result;
-    } finally {
-      if (requestId) {
-        contextRegistry.delete(requestId);
-      }
-    }
-  };
-}
-
-/**
- * Create a wrapped handler for legacy Node-specific tools.
- * These use the old RequestContext interface.
- */
-function createLegacyWrappedHandler(
-  server: McpServer,
-  handler: (args: unknown, context?: RequestContext) => Promise<unknown>,
-) {
-  return async (
-    args: unknown,
-    extra?: { requestId?: string | number; signal?: AbortSignal },
-  ) => {
-    // SDK provides requestId at top level of extra
-    const requestId = extra?.requestId;
-
-    let context: RequestContext & { _server?: McpServer };
-    if (requestId) {
-      const existingContext = contextRegistry.get(requestId);
-      if (existingContext) {
-        context = { ...existingContext, _server: server };
-      } else {
-        context = { ...contextRegistry.create(requestId), _server: server };
-      }
-    } else {
-      context = {
-        cancellationToken: createCancellationToken(),
-        timestamp: Date.now(),
-        _server: server,
-      };
-    }
-
-    try {
-      const result = await handler(args, context);
-      return result;
-    } finally {
-      if (requestId) {
-        contextRegistry.delete(requestId);
-      }
-    }
-  };
 }

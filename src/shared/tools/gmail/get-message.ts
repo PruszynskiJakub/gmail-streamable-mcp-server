@@ -11,7 +11,7 @@ export const getMessageTool = defineTool({
   title: toolsMetadata.get_message.title,
   description: toolsMetadata.get_message.description,
   inputSchema: GetMessageInputSchema,
-  outputSchema: GetMessageOutputSchema.shape,
+  outputSchema: GetMessageOutputSchema,
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -30,7 +30,7 @@ export const getMessageTool = defineTool({
       };
     }
 
-    const client = new GmailClient(token);
+    const client = new GmailClient(token, context.signal);
     const format = args.format ?? 'metadata';
     const maxBodyChars = args.maxBodyChars ?? 20000;
 

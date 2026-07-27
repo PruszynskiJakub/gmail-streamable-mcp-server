@@ -38,7 +38,7 @@ export function base64Decode(input: string): string {
 /**
  * Encode bytes to base64url (URL-safe, no padding).
  */
-export function base64UrlEncode(bytes: Uint8Array | Buffer): string {
+export function base64UrlEncode(bytes: Uint8Array<ArrayBufferLike> | Buffer): string {
   if (typeof Buffer !== 'undefined') {
     const buf = bytes instanceof Buffer ? bytes : Buffer.from(bytes);
     return buf.toString('base64url');
@@ -55,9 +55,9 @@ export function base64UrlEncode(bytes: Uint8Array | Buffer): string {
 /**
  * Decode base64url string to bytes.
  */
-export function base64UrlDecode(str: string): Uint8Array {
+export function base64UrlDecode(str: string): Uint8Array<ArrayBuffer> {
   if (typeof Buffer !== 'undefined') {
-    return new Uint8Array(Buffer.from(str, 'base64url'));
+    return Uint8Array.from(Buffer.from(str, 'base64url'));
   }
 
   // Web API fallback: convert base64url → base64
@@ -66,7 +66,7 @@ export function base64UrlDecode(str: string): Uint8Array {
   base64 += '='.repeat(padLength);
 
   const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const bytes: Uint8Array<ArrayBuffer> = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }

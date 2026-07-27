@@ -1,0 +1,1844 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`MCP 2026-07-28 and stateless legacy uses the official client for the exact modern Gmail contract 1`] = `
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "readOnlyHint": true,
+    },
+    "description": "Get the connected Gmail account email. Returns only the email address for identity confirmation.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object",
+    },
+    "name": "get_profile",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "description": "The connected Gmail account email.",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "email",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "readOnlyHint": true,
+    },
+    "description": "Get inbox stats + highlights for a time range (default: 7 days). Returns counts (unread, inbox, sent, starred, important) plus previews of recent unread and starred threads.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "description": "Number of days to look back. Default: 7.",
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "inbox_overview",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "description": "Connected Gmail account.",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+          "type": "string",
+        },
+        "counts": {
+          "additionalProperties": false,
+          "properties": {
+            "important": {
+              "description": "Important threads in the period.",
+              "type": "number",
+            },
+            "inbox": {
+              "description": "Inbox threads in the period.",
+              "type": "number",
+            },
+            "sent": {
+              "description": "Sent threads in the period.",
+              "type": "number",
+            },
+            "starred": {
+              "description": "Starred threads in the period.",
+              "type": "number",
+            },
+            "total": {
+              "description": "All threads in the period.",
+              "type": "number",
+            },
+            "unread": {
+              "description": "Unread threads in the period.",
+              "type": "number",
+            },
+          },
+          "required": [
+            "total",
+            "unread",
+            "inbox",
+            "sent",
+            "starred",
+          ],
+          "type": "object",
+        },
+        "highlights": {
+          "additionalProperties": false,
+          "properties": {
+            "recentUnread": {
+              "description": "Most recent unread threads.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "description": "Sender email address for replies.",
+                    "type": "string",
+                  },
+                  "from": {
+                    "description": "Sender display name.",
+                    "type": "string",
+                  },
+                  "subject": {
+                    "type": "string",
+                  },
+                  "threadId": {
+                    "description": "Thread ID for replies/actions.",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "threadId",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "starred": {
+              "description": "Starred threads in period.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "description": "Sender email address for replies.",
+                    "type": "string",
+                  },
+                  "from": {
+                    "description": "Sender display name.",
+                    "type": "string",
+                  },
+                  "subject": {
+                    "type": "string",
+                  },
+                  "threadId": {
+                    "description": "Thread ID for replies/actions.",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "threadId",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "nextSteps": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "period": {
+          "description": "Time period covered (e.g., "last 7 days").",
+          "type": "string",
+        },
+      },
+      "required": [
+        "account",
+        "period",
+        "counts",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "List Gmail labels with ids, names, types, and counts. Use label ids with search_threads and other filters.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object",
+    },
+    "name": "list_labels",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "color": {
+                "additionalProperties": false,
+                "properties": {
+                  "backgroundColor": {
+                    "type": "string",
+                  },
+                  "textColor": {
+                    "type": "string",
+                  },
+                },
+                "type": "object",
+              },
+              "id": {
+                "description": "Label id used in search filters.",
+                "type": "string",
+              },
+              "labelListVisibility": {
+                "type": "string",
+              },
+              "messageListVisibility": {
+                "type": "string",
+              },
+              "messagesTotal": {
+                "description": "Total messages with this label.",
+                "type": "number",
+              },
+              "messagesUnread": {
+                "description": "Unread messages with this label.",
+                "type": "number",
+              },
+              "name": {
+                "description": "Human-readable label name.",
+                "type": "string",
+              },
+              "threadsTotal": {
+                "description": "Total threads with this label.",
+                "type": "number",
+              },
+              "threadsUnread": {
+                "description": "Unread threads with this label.",
+                "type": "number",
+              },
+              "type": {
+                "description": "Label type (system or user).",
+                "type": "string",
+              },
+            },
+            "required": [
+              "id",
+              "name",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "required": [
+        "items",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+    },
+    "description": "Batch add/remove labels on threads (up to 100). Actions: archive, star, markRead, trash, or raw label IDs.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "additionalProperties": false,
+          "description": "Convenience actions for common labels.",
+          "properties": {
+            "archive": {
+              "description": "Remove INBOX label (archive).",
+              "type": "boolean",
+            },
+            "markRead": {
+              "description": "Remove UNREAD label.",
+              "type": "boolean",
+            },
+            "markUnread": {
+              "description": "Add UNREAD label.",
+              "type": "boolean",
+            },
+            "spam": {
+              "description": "Add SPAM label.",
+              "type": "boolean",
+            },
+            "star": {
+              "description": "Add STARRED label.",
+              "type": "boolean",
+            },
+            "trash": {
+              "description": "Add TRASH label.",
+              "type": "boolean",
+            },
+            "unarchive": {
+              "description": "Add INBOX label (move to inbox).",
+              "type": "boolean",
+            },
+            "unspam": {
+              "description": "Remove SPAM label.",
+              "type": "boolean",
+            },
+            "unstar": {
+              "description": "Remove STARRED label.",
+              "type": "boolean",
+            },
+            "untrash": {
+              "description": "Remove TRASH label.",
+              "type": "boolean",
+            },
+          },
+          "type": "object",
+        },
+        "addLabelIds": {
+          "description": "Label IDs to add.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "removeLabelIds": {
+          "description": "Label IDs to remove.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "threadIds": {
+          "description": "Thread IDs to modify (batch supported, max 100).",
+          "items": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array",
+        },
+      },
+      "required": [
+        "threadIds",
+      ],
+      "type": "object",
+    },
+    "name": "modify_thread",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "applied": {
+          "additionalProperties": false,
+          "properties": {
+            "addLabelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "removeLabelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "results": {
+          "description": "Results for each thread.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "error": {
+                "description": "Error message if failed.",
+                "type": "string",
+              },
+              "success": {
+                "description": "Whether the modification succeeded.",
+                "type": "boolean",
+              },
+              "threadId": {
+                "description": "Gmail thread id.",
+                "type": "string",
+              },
+            },
+            "required": [
+              "threadId",
+              "success",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "summary": {
+          "additionalProperties": false,
+          "properties": {
+            "failed": {
+              "description": "Threads that failed.",
+              "type": "number",
+            },
+            "succeeded": {
+              "description": "Threads successfully modified.",
+              "type": "number",
+            },
+            "total": {
+              "description": "Total threads processed.",
+              "type": "number",
+            },
+          },
+          "required": [
+            "total",
+            "succeeded",
+            "failed",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "results",
+        "summary",
+        "applied",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": true,
+    },
+    "description": "Search threads by Gmail query and/or labelIds. Results ordered by newest MESSAGE (not thread creation). For latest email: use limit=1 with no query. Returns subject, sender, Date header, internalDate, labelIds + label names, message count, unread status, and web links. Use get_thread to read full message bodies.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "description": "Pagination cursor from previous response (nextPageToken).",
+          "type": "string",
+        },
+        "includeSpamTrash": {
+          "description": "Include SPAM and TRASH in results. Default: false.",
+          "type": "boolean",
+        },
+        "labelIds": {
+          "description": "Filter threads by label IDs (from list_labels).",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "limit": {
+          "description": "Max results (1-50). Default: 25. Use limit=1 with no query for single latest email.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "query": {
+          "description": "Gmail search query. Omit for newest threads (no filtering). Examples: "from:alice", "is:unread", "newer_than:7d".",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "search_threads",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "description": "Date of the most recent message.",
+                "type": "string",
+              },
+              "email": {
+                "description": "Sender email address (use for replies).",
+                "type": "string",
+              },
+              "from": {
+                "description": "Sender display name.",
+                "type": "string",
+              },
+              "id": {
+                "description": "Gmail thread id (use as threadId for replies).",
+                "type": "string",
+              },
+              "internalDate": {
+                "description": "Gmail internal date (ms since epoch) of the most recent message.",
+                "type": "string",
+              },
+              "isUnread": {
+                "description": "Whether the thread has unread messages.",
+                "type": "boolean",
+              },
+              "labelIds": {
+                "description": "Union of label ids across messages in the thread.",
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "labelNames": {
+                "description": "Resolved label names for labelIds.",
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "messageCount": {
+                "description": "Number of messages in thread.",
+                "type": "number",
+              },
+              "snippet": {
+                "description": "Short preview snippet.",
+                "type": "string",
+              },
+              "subject": {
+                "description": "Email subject line.",
+                "type": "string",
+              },
+              "webUrl": {
+                "description": "Gmail web link for this thread.",
+                "format": "uri",
+                "type": "string",
+              },
+            },
+            "required": [
+              "id",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "pagination": {
+          "additionalProperties": false,
+          "properties": {
+            "hasMore": {
+              "description": "True when another page is available.",
+              "type": "boolean",
+            },
+            "itemsReturned": {
+              "description": "Number of items returned in this page.",
+              "type": "number",
+            },
+            "limit": {
+              "description": "Max items requested per page.",
+              "type": "number",
+            },
+            "nextCursor": {
+              "description": "Pass to cursor for the next page.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "hasMore",
+            "itemsReturned",
+            "limit",
+          ],
+          "type": "object",
+        },
+        "query": {
+          "additionalProperties": false,
+          "properties": {
+            "includeSpamTrash": {
+              "description": "Whether spam/trash are included.",
+              "type": "boolean",
+            },
+            "labelIds": {
+              "description": "Label ids used as filters.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "limit": {
+              "description": "Max results per page.",
+              "type": "number",
+            },
+            "query": {
+              "description": "Gmail search query string.",
+              "type": "string",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "required": [
+        "items",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": true,
+    },
+    "description": "Fetch a thread by id with ordered messages and a thread web link. Use format to control bodies, and message ids for get_message.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "description": "Message format: minimal (ids + snippet), metadata (headers only), full (headers + body), raw (RFC 2822 base64url).",
+          "enum": [
+            "minimal",
+            "metadata",
+            "full",
+            "raw",
+          ],
+          "type": "string",
+        },
+        "maxBodyChars": {
+          "description": "Max characters to return for message bodies. Default: 20000.",
+          "maximum": 200000,
+          "minimum": 100,
+          "type": "integer",
+        },
+        "metadataHeaders": {
+          "description": "Specific headers to return (metadata format only).",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "threadId": {
+          "description": "Thread ID to fetch.",
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "threadId",
+      ],
+      "type": "object",
+    },
+    "name": "get_thread",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "thread": {
+          "additionalProperties": false,
+          "properties": {
+            "historyId": {
+              "type": "string",
+            },
+            "id": {
+              "description": "Gmail thread id.",
+              "type": "string",
+            },
+            "labelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "messageCount": {
+              "description": "Number of messages in this thread.",
+              "type": "number",
+            },
+            "messages": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "html": {
+                        "description": "HTML body if requested.",
+                        "type": "string",
+                      },
+                      "raw": {
+                        "description": "Raw RFC 2822 message if requested.",
+                        "type": "string",
+                      },
+                      "text": {
+                        "description": "Plain text body if requested.",
+                        "type": "string",
+                      },
+                    },
+                    "type": "object",
+                  },
+                  "headers": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "bcc": {
+                        "description": "Bcc header.",
+                        "type": "string",
+                      },
+                      "cc": {
+                        "description": "Cc header.",
+                        "type": "string",
+                      },
+                      "date": {
+                        "description": "Date header.",
+                        "type": "string",
+                      },
+                      "from": {
+                        "description": "From header.",
+                        "type": "string",
+                      },
+                      "inReplyTo": {
+                        "description": "In-Reply-To header value.",
+                        "type": "string",
+                      },
+                      "messageId": {
+                        "description": "Message-Id header value.",
+                        "type": "string",
+                      },
+                      "references": {
+                        "description": "References header value.",
+                        "type": "string",
+                      },
+                      "replyTo": {
+                        "description": "Reply-To header.",
+                        "type": "string",
+                      },
+                      "subject": {
+                        "description": "Email subject line.",
+                        "type": "string",
+                      },
+                      "to": {
+                        "description": "To header.",
+                        "type": "string",
+                      },
+                    },
+                    "type": "object",
+                  },
+                  "historyId": {
+                    "type": "string",
+                  },
+                  "id": {
+                    "description": "Gmail message id.",
+                    "type": "string",
+                  },
+                  "internalDate": {
+                    "type": "string",
+                  },
+                  "labelIds": {
+                    "items": {
+                      "type": "string",
+                    },
+                    "type": "array",
+                  },
+                  "rawHeaders": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                        },
+                        "value": {
+                          "type": "string",
+                        },
+                      },
+                      "required": [
+                        "name",
+                        "value",
+                      ],
+                      "type": "object",
+                    },
+                    "type": "array",
+                  },
+                  "sizeEstimate": {
+                    "type": "number",
+                  },
+                  "snippet": {
+                    "description": "Short preview snippet.",
+                    "type": "string",
+                  },
+                  "threadId": {
+                    "description": "Gmail thread id.",
+                    "type": "string",
+                  },
+                  "webUrl": {
+                    "description": "Gmail web link for this message/thread.",
+                    "format": "uri",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "id",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "webUrl": {
+              "description": "Gmail web link for this thread.",
+              "format": "uri",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+            "messageCount",
+            "messages",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "thread",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": true,
+    },
+    "description": "Fetch a single message by id. Use format to control headers/body and return a web link when available.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "description": "Message format: minimal (ids + snippet), metadata (headers only), full (headers + body), raw (RFC 2822 base64url).",
+          "enum": [
+            "minimal",
+            "metadata",
+            "full",
+            "raw",
+          ],
+          "type": "string",
+        },
+        "maxBodyChars": {
+          "description": "Max characters to return for the message body. Default: 20000.",
+          "maximum": 200000,
+          "minimum": 100,
+          "type": "integer",
+        },
+        "messageId": {
+          "description": "Message ID to fetch.",
+          "minLength": 1,
+          "type": "string",
+        },
+        "metadataHeaders": {
+          "description": "Specific headers to return (metadata format only).",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "messageId",
+      ],
+      "type": "object",
+    },
+    "name": "get_message",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "additionalProperties": false,
+              "properties": {
+                "html": {
+                  "description": "HTML body if requested.",
+                  "type": "string",
+                },
+                "raw": {
+                  "description": "Raw RFC 2822 message if requested.",
+                  "type": "string",
+                },
+                "text": {
+                  "description": "Plain text body if requested.",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "headers": {
+              "additionalProperties": false,
+              "properties": {
+                "bcc": {
+                  "description": "Bcc header.",
+                  "type": "string",
+                },
+                "cc": {
+                  "description": "Cc header.",
+                  "type": "string",
+                },
+                "date": {
+                  "description": "Date header.",
+                  "type": "string",
+                },
+                "from": {
+                  "description": "From header.",
+                  "type": "string",
+                },
+                "inReplyTo": {
+                  "description": "In-Reply-To header value.",
+                  "type": "string",
+                },
+                "messageId": {
+                  "description": "Message-Id header value.",
+                  "type": "string",
+                },
+                "references": {
+                  "description": "References header value.",
+                  "type": "string",
+                },
+                "replyTo": {
+                  "description": "Reply-To header.",
+                  "type": "string",
+                },
+                "subject": {
+                  "description": "Email subject line.",
+                  "type": "string",
+                },
+                "to": {
+                  "description": "To header.",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "historyId": {
+              "type": "string",
+            },
+            "id": {
+              "description": "Gmail message id.",
+              "type": "string",
+            },
+            "internalDate": {
+              "type": "string",
+            },
+            "labelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "rawHeaders": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                  },
+                  "value": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "name",
+                  "value",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "sizeEstimate": {
+              "type": "number",
+            },
+            "snippet": {
+              "description": "Short preview snippet.",
+              "type": "string",
+            },
+            "threadId": {
+              "description": "Gmail thread id.",
+              "type": "string",
+            },
+            "webUrl": {
+              "description": "Gmail web link for this message/thread.",
+              "format": "uri",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+          ],
+          "type": "object",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "required": [
+        "message",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+    },
+    "description": "Create a draft. For replies: ALWAYS include threadId (from search_threads) to keep draft in conversation. Use email addresses from search results, not guesses. Requires at least one recipient (to/cc/bcc).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "bcc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Bcc recipients.",
+        },
+        "cc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Cc recipients.",
+        },
+        "from": {
+          "description": "From address (optional).",
+          "minLength": 1,
+          "type": "string",
+        },
+        "html": {
+          "description": "HTML body.",
+          "type": "string",
+        },
+        "inReplyTo": {
+          "description": "Message-ID of the email being replied to.",
+          "type": "string",
+        },
+        "raw": {
+          "description": "Raw RFC 2822 message encoded as base64url.",
+          "type": "string",
+        },
+        "references": {
+          "description": "List of Message-IDs for thread context.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "replyTo": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Reply-To address(es).",
+        },
+        "subject": {
+          "description": "Email subject line.",
+          "type": "string",
+        },
+        "text": {
+          "description": "Plain text body.",
+          "type": "string",
+        },
+        "threadId": {
+          "description": "Gmail thread ID to attach the message to.",
+          "type": "string",
+        },
+        "to": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Primary recipients.",
+        },
+      },
+      "type": "object",
+    },
+    "name": "create_draft",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "description": "Gmail draft id.",
+              "type": "string",
+            },
+            "labelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "messageId": {
+              "description": "Underlying message id.",
+              "type": "string",
+            },
+            "snippet": {
+              "description": "Short preview snippet.",
+              "type": "string",
+            },
+            "threadId": {
+              "description": "Thread id if attached to a thread.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+          ],
+          "type": "object",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "required": [
+        "draft",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+    },
+    "description": "Replace a draft message by draftId. Accepts raw or structured fields and returns updated draft metadata.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "bcc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Bcc recipients.",
+        },
+        "cc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Cc recipients.",
+        },
+        "draftId": {
+          "description": "Draft ID to update.",
+          "minLength": 1,
+          "type": "string",
+        },
+        "from": {
+          "description": "From address (optional).",
+          "minLength": 1,
+          "type": "string",
+        },
+        "html": {
+          "description": "HTML body.",
+          "type": "string",
+        },
+        "inReplyTo": {
+          "description": "Message-ID of the email being replied to.",
+          "type": "string",
+        },
+        "raw": {
+          "description": "Raw RFC 2822 message encoded as base64url.",
+          "type": "string",
+        },
+        "references": {
+          "description": "List of Message-IDs for thread context.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "replyTo": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Reply-To address(es).",
+        },
+        "subject": {
+          "description": "Email subject line.",
+          "type": "string",
+        },
+        "text": {
+          "description": "Plain text body.",
+          "type": "string",
+        },
+        "threadId": {
+          "description": "Gmail thread ID to attach the message to.",
+          "type": "string",
+        },
+        "to": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Primary recipients.",
+        },
+      },
+      "required": [
+        "draftId",
+      ],
+      "type": "object",
+    },
+    "name": "update_draft",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "description": "Gmail draft id.",
+              "type": "string",
+            },
+            "labelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "messageId": {
+              "description": "Underlying message id.",
+              "type": "string",
+            },
+            "snippet": {
+              "description": "Short preview snippet.",
+              "type": "string",
+            },
+            "threadId": {
+              "description": "Thread id if attached to a thread.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+          ],
+          "type": "object",
+        },
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "required": [
+        "draft",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+    },
+    "description": "Send a draft by draftId. Optionally replace contents before sending. Returns sent message metadata.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "bcc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Bcc recipients.",
+        },
+        "cc": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Cc recipients.",
+        },
+        "draftId": {
+          "description": "Draft ID to send.",
+          "minLength": 1,
+          "type": "string",
+        },
+        "from": {
+          "description": "From address (optional).",
+          "minLength": 1,
+          "type": "string",
+        },
+        "html": {
+          "description": "HTML body.",
+          "type": "string",
+        },
+        "inReplyTo": {
+          "description": "Message-ID of the email being replied to.",
+          "type": "string",
+        },
+        "raw": {
+          "description": "Raw RFC 2822 message encoded as base64url.",
+          "type": "string",
+        },
+        "references": {
+          "description": "List of Message-IDs for thread context.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "replyTo": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Reply-To address(es).",
+        },
+        "subject": {
+          "description": "Email subject line.",
+          "type": "string",
+        },
+        "text": {
+          "description": "Plain text body.",
+          "type": "string",
+        },
+        "threadId": {
+          "description": "Gmail thread ID to attach the message to.",
+          "type": "string",
+        },
+        "to": {
+          "anyOf": [
+            {
+              "description": "Email address. Example: "alice@example.com".",
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "items": {
+                "description": "Email address. Example: "alice@example.com".",
+                "minLength": 1,
+                "type": "string",
+              },
+              "minItems": 1,
+              "type": "array",
+            },
+          ],
+          "description": "Primary recipients.",
+        },
+      },
+      "required": [
+        "draftId",
+      ],
+      "type": "object",
+    },
+    "name": "send_draft",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "meta": {
+          "additionalProperties": false,
+          "properties": {
+            "hints": {
+              "description": "Helpful tips to refine queries or recover from errors.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "nextSteps": {
+              "description": "Actionable follow-ups based on the current result.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "relatedTools": {
+              "description": "Tool names that commonly follow this call.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "sent": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "additionalProperties": false,
+              "properties": {
+                "html": {
+                  "description": "HTML body if requested.",
+                  "type": "string",
+                },
+                "raw": {
+                  "description": "Raw RFC 2822 message if requested.",
+                  "type": "string",
+                },
+                "text": {
+                  "description": "Plain text body if requested.",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "headers": {
+              "additionalProperties": false,
+              "properties": {
+                "bcc": {
+                  "description": "Bcc header.",
+                  "type": "string",
+                },
+                "cc": {
+                  "description": "Cc header.",
+                  "type": "string",
+                },
+                "date": {
+                  "description": "Date header.",
+                  "type": "string",
+                },
+                "from": {
+                  "description": "From header.",
+                  "type": "string",
+                },
+                "inReplyTo": {
+                  "description": "In-Reply-To header value.",
+                  "type": "string",
+                },
+                "messageId": {
+                  "description": "Message-Id header value.",
+                  "type": "string",
+                },
+                "references": {
+                  "description": "References header value.",
+                  "type": "string",
+                },
+                "replyTo": {
+                  "description": "Reply-To header.",
+                  "type": "string",
+                },
+                "subject": {
+                  "description": "Email subject line.",
+                  "type": "string",
+                },
+                "to": {
+                  "description": "To header.",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "historyId": {
+              "type": "string",
+            },
+            "id": {
+              "description": "Gmail message id.",
+              "type": "string",
+            },
+            "internalDate": {
+              "type": "string",
+            },
+            "labelIds": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "rawHeaders": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                  },
+                  "value": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "name",
+                  "value",
+                ],
+                "type": "object",
+              },
+              "type": "array",
+            },
+            "sizeEstimate": {
+              "type": "number",
+            },
+            "snippet": {
+              "description": "Short preview snippet.",
+              "type": "string",
+            },
+            "threadId": {
+              "description": "Gmail thread id.",
+              "type": "string",
+            },
+            "webUrl": {
+              "description": "Gmail web link for this message/thread.",
+              "format": "uri",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "sent",
+      ],
+      "type": "object",
+    },
+  },
+]
+`;

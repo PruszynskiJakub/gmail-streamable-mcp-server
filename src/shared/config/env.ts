@@ -1,41 +1,37 @@
-// Unified config reader for both Node.js and Cloudflare Workers
-// Generalized from Spotify MCP implementation
+export type AuthStrategyType = 'oauth' | 'bearer' | 'api_key' | 'custom' | 'none';
+export type RuntimeEnvironment = 'development' | 'production' | 'test';
+export type LegacyMode = 'stateless' | 'reject';
+export type LogLevel = 'debug' | 'info' | 'warning' | 'error';
 
-import type { AuthStrategyType } from '../auth/strategy.js';
-
-export type UnifiedConfig = {
-  // Server
+export interface UnifiedConfig {
   HOST: string;
   PORT: number;
-  NODE_ENV: 'development' | 'production' | 'test';
+  NODE_ENV: RuntimeEnvironment;
+  LOG_LEVEL: LogLevel;
 
-  // MCP
+  MCP_NAME: string;
   MCP_TITLE: string;
-  MCP_INSTRUCTIONS: string;
   MCP_VERSION: string;
-  MCP_PROTOCOL_VERSION: string;
-  MCP_ACCEPT_HEADERS: string[];
+  MCP_DESCRIPTION: string;
+  MCP_INSTRUCTIONS: string;
+  MCP_PUBLIC_URL: URL;
+  MCP_WEBSITE_URL?: URL;
+  MCP_ALLOWED_HOSTS: string[];
+  MCP_ALLOWED_ORIGIN_HOSTNAMES: string[];
+  MCP_LEGACY_MODE: LegacyMode;
+  MCP_MAX_REQUEST_BYTES: number;
 
-  // Auth Strategy
   AUTH_STRATEGY: AuthStrategyType;
   AUTH_ENABLED: boolean;
-  AUTH_REQUIRE_RS: boolean;
-  AUTH_ALLOW_DIRECT_BEARER: boolean;
   AUTH_RESOURCE_URI?: string;
   AUTH_DISCOVERY_URL?: string;
+  AUTH_REQUIRED_SCOPES: string[];
 
-  // API Key auth (AUTH_STRATEGY=api_key)
   API_KEY?: string;
   API_KEY_HEADER: string;
-
-  // Bearer token auth (AUTH_STRATEGY=bearer)
   BEARER_TOKEN?: string;
-
-  // Custom headers (AUTH_STRATEGY=custom)
-  // Format: "X-Header-1:value1,X-Header-2:value2"
   CUSTOM_HEADERS?: string;
 
-  // OAuth (AUTH_STRATEGY=oauth)
   OAUTH_CLIENT_ID?: string;
   OAUTH_CLIENT_SECRET?: string;
   OAUTH_SCOPES: string;
@@ -45,147 +41,303 @@ export type UnifiedConfig = {
   OAUTH_REDIRECT_URI: string;
   OAUTH_REDIRECT_ALLOWLIST: string[];
   OAUTH_REDIRECT_ALLOW_ALL: boolean;
-  // Extra params for authorization URL (e.g., "access_type=offline&prompt=consent" for Google)
   OAUTH_EXTRA_AUTH_PARAMS?: string;
+  OAUTH_PROXY_PUBLIC_URL?: URL;
 
-  // CIMD (Client ID Metadata Documents - SEP-991)
   CIMD_ENABLED: boolean;
   CIMD_FETCH_TIMEOUT_MS: number;
   CIMD_MAX_RESPONSE_BYTES: number;
-  /** Comma-separated list of allowed domains for CIMD client_ids */
   CIMD_ALLOWED_DOMAINS: string[];
 
-  // Provider-specific (example: add your own like GITHUB_CLIENT_ID, LINEAR_API_KEY, etc.)
   PROVIDER_CLIENT_ID?: string;
   PROVIDER_CLIENT_SECRET?: string;
   PROVIDER_API_URL?: string;
   PROVIDER_ACCOUNTS_URL?: string;
 
-  // Storage
   RS_TOKENS_FILE?: string;
-  /** Base64url-encoded 32-byte key for encrypting tokens at rest */
   RS_TOKENS_ENC_KEY?: string;
 
-  // Rate limiting
   RPS_LIMIT: number;
   CONCURRENCY_LIMIT: number;
-
-  // Logging
-  LOG_LEVEL: 'debug' | 'info' | 'warning' | 'error';
-};
-
-function parseBoolean(value: unknown): boolean {
-  return String(value || 'false').toLowerCase() === 'true';
 }
 
-function parseNumber(value: unknown, defaultValue: number): number {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : defaultValue;
+function stringValue(env: Record<string, unknown>, key: string, fallback = ''): string {
+  const value = env[key];
+  return value === undefined || value === null || value === ''
+    ? fallback
+    : String(value).trim();
 }
 
-function parseStringArray(value: unknown): string[] {
-  return String(value || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+function optionalString(env: Record<string, unknown>, key: string): string | undefined {
+  const value = stringValue(env, key);
+  return value || undefined;
 }
 
-/**
- * Determine auth strategy from env.
- * Priority: AUTH_STRATEGY > AUTH_ENABLED > default
- */
+function booleanValue(
+  env: Record<string, unknown>,
+  key: string,
+  fallback = false,
+): boolean {
+  const raw = env[key];
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const value = String(raw).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+  if (['0', 'false', 'no', 'off'].includes(value)) return false;
+  throw new Error(`${key} must be true or false`);
+}
+
+function integerValue(
+  env: Record<string, unknown>,
+  key: string,
+  fallback: number,
+  min = 1,
+  max = 65_535,
+): number {
+  const value = Number(stringValue(env, key, String(fallback)));
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${key} must be an integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function listValue(
+  env: Record<string, unknown>,
+  key: string,
+  fallback: string[] = [],
+  separator: RegExp = /[ ,]+/,
+): string[] {
+  const value = stringValue(env, key);
+  if (!value) return [...fallback];
+  return [
+    ...new Set(
+      value
+        .split(separator)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function enumValue<T extends string>(
+  env: Record<string, unknown>,
+  key: string,
+  values: readonly T[],
+  fallback: T,
+): T {
+  const value = stringValue(env, key, fallback) as T;
+  if (!values.includes(value)) {
+    throw new Error(`${key} must be one of: ${values.join(', ')}`);
+  }
+  return value;
+}
+
+function urlValue(
+  env: Record<string, unknown>,
+  key: string,
+  fallback?: string,
+): URL | undefined {
+  const value = stringValue(env, key, fallback);
+  if (!value) return undefined;
+  try {
+    return new URL(value);
+  } catch {
+    throw new Error(`${key} must be an absolute URL`);
+  }
+}
+
+function isLoopback(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function validateSecureUrl(
+  url: URL,
+  key: string,
+  environment: RuntimeEnvironment,
+): void {
+  if (
+    environment === 'production' &&
+    url.protocol !== 'https:' &&
+    !isLoopback(url.hostname)
+  ) {
+    throw new Error(`${key} must use HTTPS in production`);
+  }
+}
+
 function parseAuthStrategy(env: Record<string, unknown>): AuthStrategyType {
-  const explicit = (env.AUTH_STRATEGY as string)?.toLowerCase();
-  if (explicit && ['oauth', 'bearer', 'api_key', 'custom', 'none'].includes(explicit)) {
+  const explicit = optionalString(env, 'AUTH_STRATEGY')?.toLowerCase();
+  if (explicit) {
+    const allowed: AuthStrategyType[] = [
+      'oauth',
+      'bearer',
+      'api_key',
+      'custom',
+      'none',
+    ];
+    if (!allowed.includes(explicit as AuthStrategyType)) {
+      throw new Error(`AUTH_STRATEGY must be one of: ${allowed.join(', ')}`);
+    }
     return explicit as AuthStrategyType;
   }
-
-  // Fallback: if AUTH_ENABLED is true, default to OAuth
-  if (parseBoolean(env.AUTH_ENABLED)) {
-    return 'oauth';
-  }
-
-  // Check if API_KEY is set → default to api_key
-  if (env.API_KEY) {
-    return 'api_key';
-  }
-
-  // Check if BEARER_TOKEN is set → default to bearer
-  if (env.BEARER_TOKEN) {
-    return 'bearer';
-  }
-
+  if (booleanValue(env, 'AUTH_ENABLED')) return 'oauth';
+  if (optionalString(env, 'API_KEY')) return 'api_key';
+  if (optionalString(env, 'BEARER_TOKEN')) return 'bearer';
   return 'none';
 }
 
-/**
- * Parse environment variables into a unified config object
- * Works for both process.env (Node.js) and Workers env bindings
- */
 export function parseConfig(env: Record<string, unknown>): UnifiedConfig {
+  const port = integerValue(env, 'PORT', 3000);
+  const environment = enumValue(
+    env,
+    'NODE_ENV',
+    ['development', 'production', 'test'] as const,
+    'development',
+  );
+  const configuredPublicUrl = optionalString(env, 'MCP_PUBLIC_URL');
+  if (environment === 'production' && !configuredPublicUrl) {
+    throw new Error('MCP_PUBLIC_URL is required in production');
+  }
+  const publicUrl = urlValue(
+    env,
+    'MCP_PUBLIC_URL',
+    `http://localhost:${port}/mcp`,
+  ) as URL;
+  if (publicUrl.search || publicUrl.hash) {
+    throw new Error('MCP_PUBLIC_URL must not include a query string or fragment');
+  }
+  validateSecureUrl(publicUrl, 'MCP_PUBLIC_URL', environment);
+
+  const defaultHosts = [publicUrl.hostname];
+  if (environment !== 'production') {
+    defaultHosts.push('localhost', '127.0.0.1', '[::1]');
+  }
+  const allowedHosts = listValue(env, 'MCP_ALLOWED_HOSTS', defaultHosts);
+  const allowedOrigins = listValue(env, 'MCP_ALLOWED_ORIGIN_HOSTNAMES', defaultHosts);
+  if (allowedHosts.length === 0 || allowedOrigins.length === 0) {
+    throw new Error('MCP Host and Origin allowlists must not be empty');
+  }
+
   const authStrategy = parseAuthStrategy(env);
+  const authEnabled =
+    authStrategy === 'oauth' || booleanValue(env, 'AUTH_ENABLED', false);
+  const configuredResourceUrl = urlValue(env, 'AUTH_RESOURCE_URI');
+  if (configuredResourceUrl && configuredResourceUrl.href !== publicUrl.href) {
+    throw new Error('AUTH_RESOURCE_URI must exactly match MCP_PUBLIC_URL');
+  }
+  const mcpTitle = stringValue(env, 'MCP_TITLE', 'MCP Server Template');
+  const oauthScopes = stringValue(env, 'OAUTH_SCOPES');
+  const requiredScopes = listValue(
+    env,
+    'AUTH_REQUIRED_SCOPES',
+    oauthScopes.split(/\s+/).filter(Boolean),
+  );
+
+  const authorizationUrl = optionalString(env, 'OAUTH_AUTHORIZATION_URL');
+  const tokenUrl = optionalString(env, 'OAUTH_TOKEN_URL');
+  const revocationUrl = optionalString(env, 'OAUTH_REVOCATION_URL');
+  const proxyPublicUrl = urlValue(env, 'OAUTH_PROXY_PUBLIC_URL');
+  for (const [key, value] of [
+    ['OAUTH_AUTHORIZATION_URL', authorizationUrl],
+    ['OAUTH_TOKEN_URL', tokenUrl],
+    ['OAUTH_REVOCATION_URL', revocationUrl],
+  ] as const) {
+    if (value) validateSecureUrl(new URL(value), key, environment);
+  }
+  if (proxyPublicUrl) {
+    validateSecureUrl(proxyPublicUrl, 'OAUTH_PROXY_PUBLIC_URL', environment);
+  }
 
   return {
-    HOST: String(env.HOST || '127.0.0.1'),
-    PORT: parseNumber(env.PORT, 3000),
-    NODE_ENV: (env.NODE_ENV as UnifiedConfig['NODE_ENV']) || 'development',
-
-    MCP_TITLE: String(env.MCP_TITLE || 'MCP Server Template'),
-    MCP_INSTRUCTIONS: (env.MCP_INSTRUCTIONS as string) || '',
-    MCP_VERSION: String(env.MCP_VERSION || '0.1.0'),
-    MCP_PROTOCOL_VERSION: String(env.MCP_PROTOCOL_VERSION || '2025-06-18'),
-    MCP_ACCEPT_HEADERS: parseStringArray(env.MCP_ACCEPT_HEADERS),
-
-    // Auth Strategy
-    AUTH_STRATEGY: authStrategy,
-    AUTH_ENABLED: authStrategy === 'oauth' || parseBoolean(env.AUTH_ENABLED),
-    AUTH_REQUIRE_RS: parseBoolean(env.AUTH_REQUIRE_RS),
-    AUTH_ALLOW_DIRECT_BEARER: parseBoolean(env.AUTH_ALLOW_DIRECT_BEARER),
-    AUTH_RESOURCE_URI: env.AUTH_RESOURCE_URI as string | undefined,
-    AUTH_DISCOVERY_URL: env.AUTH_DISCOVERY_URL as string | undefined,
-
-    // API Key auth
-    API_KEY: env.API_KEY as string | undefined,
-    API_KEY_HEADER: String(env.API_KEY_HEADER || 'x-api-key'),
-
-    // Bearer token auth
-    BEARER_TOKEN: env.BEARER_TOKEN as string | undefined,
-
-    // Custom headers
-    CUSTOM_HEADERS: env.CUSTOM_HEADERS as string | undefined,
-
-    // OAuth
-    OAUTH_CLIENT_ID: env.OAUTH_CLIENT_ID as string | undefined,
-    OAUTH_CLIENT_SECRET: env.OAUTH_CLIENT_SECRET as string | undefined,
-    OAUTH_SCOPES: String(env.OAUTH_SCOPES || ''),
-    OAUTH_AUTHORIZATION_URL: env.OAUTH_AUTHORIZATION_URL as string | undefined,
-    OAUTH_TOKEN_URL: env.OAUTH_TOKEN_URL as string | undefined,
-    OAUTH_REVOCATION_URL: env.OAUTH_REVOCATION_URL as string | undefined,
-    OAUTH_REDIRECT_URI: String(
-      env.OAUTH_REDIRECT_URI || 'http://localhost:3000/callback',
+    HOST: stringValue(env, 'HOST', '127.0.0.1'),
+    PORT: port,
+    NODE_ENV: environment,
+    LOG_LEVEL: enumValue(
+      env,
+      'LOG_LEVEL',
+      ['debug', 'info', 'warning', 'error'] as const,
+      'info',
     ),
-    OAUTH_REDIRECT_ALLOWLIST: parseStringArray(env.OAUTH_REDIRECT_ALLOWLIST),
-    OAUTH_REDIRECT_ALLOW_ALL: parseBoolean(env.OAUTH_REDIRECT_ALLOW_ALL),
-    OAUTH_EXTRA_AUTH_PARAMS: env.OAUTH_EXTRA_AUTH_PARAMS as string | undefined,
 
-    // CIMD (SEP-991)
-    CIMD_ENABLED: parseBoolean(env.CIMD_ENABLED ?? 'true'),
-    CIMD_FETCH_TIMEOUT_MS: parseNumber(env.CIMD_FETCH_TIMEOUT_MS, 5000),
-    CIMD_MAX_RESPONSE_BYTES: parseNumber(env.CIMD_MAX_RESPONSE_BYTES, 65536),
-    CIMD_ALLOWED_DOMAINS: parseStringArray(env.CIMD_ALLOWED_DOMAINS),
+    MCP_NAME: stringValue(env, 'MCP_NAME', mcpTitle),
+    MCP_TITLE: mcpTitle,
+    MCP_VERSION: stringValue(env, 'MCP_VERSION', '0.1.0'),
+    MCP_DESCRIPTION: stringValue(
+      env,
+      'MCP_DESCRIPTION',
+      'Search, read, draft, send, and organize Gmail messages.',
+    ),
+    MCP_INSTRUCTIONS: stringValue(env, 'MCP_INSTRUCTIONS'),
+    MCP_PUBLIC_URL: publicUrl,
+    MCP_WEBSITE_URL: urlValue(env, 'MCP_WEBSITE_URL'),
+    MCP_ALLOWED_HOSTS: allowedHosts,
+    MCP_ALLOWED_ORIGIN_HOSTNAMES: allowedOrigins,
+    MCP_LEGACY_MODE: enumValue(
+      env,
+      'MCP_LEGACY_MODE',
+      ['stateless', 'reject'] as const,
+      'stateless',
+    ),
+    MCP_MAX_REQUEST_BYTES: integerValue(
+      env,
+      'MCP_MAX_REQUEST_BYTES',
+      1_048_576,
+      1_024,
+      10_485_760,
+    ),
 
-    PROVIDER_CLIENT_ID: (env.PROVIDER_CLIENT_ID as string | undefined)?.trim(),
-    PROVIDER_CLIENT_SECRET: (env.PROVIDER_CLIENT_SECRET as string | undefined)?.trim(),
-    PROVIDER_API_URL: env.PROVIDER_API_URL as string | undefined,
-    PROVIDER_ACCOUNTS_URL: env.PROVIDER_ACCOUNTS_URL as string | undefined,
+    AUTH_STRATEGY: authStrategy,
+    AUTH_ENABLED: authEnabled,
+    AUTH_RESOURCE_URI: configuredResourceUrl?.href,
+    AUTH_DISCOVERY_URL: optionalString(env, 'AUTH_DISCOVERY_URL'),
+    AUTH_REQUIRED_SCOPES: requiredScopes,
 
-    RS_TOKENS_FILE: env.RS_TOKENS_FILE as string | undefined,
-    RS_TOKENS_ENC_KEY: env.RS_TOKENS_ENC_KEY as string | undefined,
+    API_KEY: optionalString(env, 'API_KEY'),
+    API_KEY_HEADER: stringValue(env, 'API_KEY_HEADER', 'x-api-key'),
+    BEARER_TOKEN: optionalString(env, 'BEARER_TOKEN'),
+    CUSTOM_HEADERS: optionalString(env, 'CUSTOM_HEADERS'),
 
-    RPS_LIMIT: parseNumber(env.RPS_LIMIT, 10),
-    CONCURRENCY_LIMIT: parseNumber(env.CONCURRENCY_LIMIT, 5),
+    OAUTH_CLIENT_ID: optionalString(env, 'OAUTH_CLIENT_ID'),
+    OAUTH_CLIENT_SECRET: optionalString(env, 'OAUTH_CLIENT_SECRET'),
+    OAUTH_SCOPES: oauthScopes,
+    OAUTH_AUTHORIZATION_URL: authorizationUrl,
+    OAUTH_TOKEN_URL: tokenUrl,
+    OAUTH_REVOCATION_URL: revocationUrl,
+    OAUTH_REDIRECT_URI: stringValue(
+      env,
+      'OAUTH_REDIRECT_URI',
+      'http://localhost:3001/oauth/callback',
+    ),
+    OAUTH_REDIRECT_ALLOWLIST: listValue(env, 'OAUTH_REDIRECT_ALLOWLIST', [], /,/),
+    OAUTH_REDIRECT_ALLOW_ALL: booleanValue(env, 'OAUTH_REDIRECT_ALLOW_ALL', false),
+    OAUTH_EXTRA_AUTH_PARAMS: optionalString(env, 'OAUTH_EXTRA_AUTH_PARAMS'),
+    OAUTH_PROXY_PUBLIC_URL: proxyPublicUrl,
 
-    LOG_LEVEL: (env.LOG_LEVEL as UnifiedConfig['LOG_LEVEL']) || 'info',
+    CIMD_ENABLED: booleanValue(env, 'CIMD_ENABLED', true),
+    CIMD_FETCH_TIMEOUT_MS: integerValue(
+      env,
+      'CIMD_FETCH_TIMEOUT_MS',
+      5_000,
+      100,
+      60_000,
+    ),
+    CIMD_MAX_RESPONSE_BYTES: integerValue(
+      env,
+      'CIMD_MAX_RESPONSE_BYTES',
+      65_536,
+      1_024,
+      1_048_576,
+    ),
+    CIMD_ALLOWED_DOMAINS: listValue(env, 'CIMD_ALLOWED_DOMAINS'),
+
+    PROVIDER_CLIENT_ID: optionalString(env, 'PROVIDER_CLIENT_ID'),
+    PROVIDER_CLIENT_SECRET: optionalString(env, 'PROVIDER_CLIENT_SECRET'),
+    PROVIDER_API_URL: optionalString(env, 'PROVIDER_API_URL'),
+    PROVIDER_ACCOUNTS_URL: optionalString(env, 'PROVIDER_ACCOUNTS_URL'),
+
+    RS_TOKENS_FILE: optionalString(env, 'RS_TOKENS_FILE'),
+    RS_TOKENS_ENC_KEY: optionalString(env, 'RS_TOKENS_ENC_KEY'),
+
+    RPS_LIMIT: integerValue(env, 'RPS_LIMIT', 10, 1, 100_000),
+    CONCURRENCY_LIMIT: integerValue(env, 'CONCURRENCY_LIMIT', 5, 1, 10_000),
   };
 }
 
