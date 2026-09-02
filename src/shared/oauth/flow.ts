@@ -48,6 +48,30 @@ export function generateOpaqueToken(bytes = 32): string {
   return base64UrlEncode(array);
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+}
+
+function matchesAllowedRedirect(uri: URL, allowedUri: string): boolean {
+  if (!allowedUri.includes(':*')) {
+    return false;
+  }
+
+  try {
+    const [prefix, suffix = ''] = allowedUri.split(':*');
+    const allowed = new URL(`${prefix}:0${suffix}`);
+
+    return (
+      uri.protocol === allowed.protocol &&
+      uri.pathname === allowed.pathname &&
+      isLoopbackHost(uri.hostname) &&
+      isLoopbackHost(allowed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isAllowedRedirect(uri: string, config: OAuthConfig, isDev: boolean): boolean {
   try {
     const allowed = new Set(
@@ -56,8 +80,7 @@ function isAllowedRedirect(uri: string, config: OAuthConfig, isDev: boolean): bo
     const url = new URL(uri);
 
     if (isDev) {
-      const loopback = new Set(['localhost', '127.0.0.1', '::1']);
-      if (loopback.has(url.hostname)) {
+      if (isLoopbackHost(url.hostname)) {
         return true;
       }
     }
@@ -67,7 +90,9 @@ function isAllowedRedirect(uri: string, config: OAuthConfig, isDev: boolean): bo
     }
 
     return (
-      allowed.has(`${url.protocol}//${url.host}${url.pathname}`) || allowed.has(uri)
+      allowed.has(`${url.protocol}//${url.host}${url.pathname}`) ||
+      allowed.has(uri) ||
+      Array.from(allowed).some((allowedUri) => matchesAllowedRedirect(url, allowedUri))
     );
   } catch {
     return false;

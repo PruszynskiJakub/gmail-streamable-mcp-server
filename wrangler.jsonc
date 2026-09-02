@@ -1,18 +1,25 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "gmail-mcp",
+
+  // ---------------------------------------------------------------------------
+  // Top level = LOCAL DEVELOPMENT (`bun run dev:worker` -> wrangler dev).
+  // Named "…-dev" so a bare `wrangler deploy` can never overwrite production.
+  // Production lives in env.production below; deploy with `--env production`.
+  // ---------------------------------------------------------------------------
+  "name": "gmail-mcp-dev",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+
   "vars": {
-    "NODE_ENV": "production",
+    "NODE_ENV": "development",
     "MCP_NAME": "gmail-mcp",
     "MCP_TITLE": "Gmail",
     "MCP_VERSION": "1.0.0",
-    "MCP_PUBLIC_URL": "https://gmail-mcp.example.workers.dev/mcp",
-    "MCP_ALLOWED_HOSTS": "gmail-mcp.example.workers.dev",
-    "MCP_ALLOWED_ORIGIN_HOSTNAMES": "gmail-mcp.example.workers.dev,claude.ai,claude.com",
+    "MCP_PUBLIC_URL": "http://localhost:8787/mcp",
+    "MCP_ALLOWED_HOSTS": "localhost,127.0.0.1,[::1]",
+    "MCP_ALLOWED_ORIGIN_HOSTNAMES": "localhost,127.0.0.1,[::1]",
     "MCP_LEGACY_MODE": "stateless",
     "MCP_MAX_REQUEST_BYTES": "1048576",
     "AUTH_ENABLED": "true",
@@ -24,28 +31,100 @@
     "OAUTH_SCOPES": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify",
     "OAUTH_EXTRA_AUTH_PARAMS": "access_type=offline&prompt=consent",
     "OAUTH_REDIRECT_ALLOW_ALL": "false",
-    "OAUTH_REDIRECT_ALLOWLIST": "alice://oauth/callback,https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback",
-    "OAUTH_REDIRECT_URI": "https://gmail-mcp.example.workers.dev/oauth/callback",
+    "OAUTH_REDIRECT_ALLOWLIST": "alice://oauth/callback,http://localhost:8787/oauth/callback",
+    "OAUTH_REDIRECT_URI": "http://localhost:8787/oauth/callback",
     "CIMD_ENABLED": "true",
     "LOG_LEVEL": "info"
   },
-  // Set PROVIDER_CLIENT_ID, PROVIDER_CLIENT_SECRET, and RS_TOKENS_ENC_KEY
-  // with `wrangler secret put`; never add their values to vars.
+
+  // `wrangler dev` simulates KV locally, so this id is only used with --remote.
+  // Titled GMAIL_TOKENS on the account; the binding the Worker reads is TOKENS.
+  // Deliberately NOT the "TOKENS" namespace -- that one belongs to the calendar
+  // MCP server, and rs:access:/rs:refresh: keys are unprefixed, so sharing a
+  // namespace between the two servers would let their tokens collide.
   "kv_namespaces": [
     {
       "binding": "TOKENS",
-      "id": "00000000000000000000000000000000"
+      "id": "a983fa8f17b5447596033dabdd009edd"
     }
   ],
+
   "observability": {
     "enabled": true,
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1
-    },
-    "traces": {
-      "enabled": true,
-      "head_sampling_rate": 0.1
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  },
+
+  "env": {
+    // -------------------------------------------------------------------------
+    // PRODUCTION — `bun run deploy` (wrangler deploy --env production).
+    // Served at https://gmail-mcp.jakub-mikolaj-pruszynski.workers.dev
+    //
+    // `vars` and `kv_namespaces` are NOT inherited from the top level in a named
+    // environment, so they are repeated in full here. Secrets are set separately:
+    //   wrangler secret put <NAME> --env production
+    // -------------------------------------------------------------------------
+    "production": {
+      // Overrides the inherited "gmail-mcp-dev" so the workers.dev hostname is
+      // gmail-mcp.<subdomain>.workers.dev, not
+      // gmail-mcp-production.<subdomain>.workers.dev
+      "name": "gmail-mcp",
+      "workers_dev": true,
+
+      "vars": {
+        // NODE_ENV=production turns on the config guards in
+        // src/shared/config/env.ts: HTTPS required on every OAuth URL and
+        // MCP_PUBLIC_URL mandatory.
+        "NODE_ENV": "production",
+        "MCP_NAME": "gmail-mcp",
+        "MCP_TITLE": "Gmail",
+        "MCP_VERSION": "1.0.0",
+
+        "MCP_PUBLIC_URL": "https://gmail-mcp.jakub-mikolaj-pruszynski.workers.dev/mcp",
+        // Host header check. Only the deployed hostname is accepted.
+        "MCP_ALLOWED_HOSTS": "gmail-mcp.jakub-mikolaj-pruszynski.workers.dev",
+        // Origin check, and only applies to requests that send an Origin header
+        // (i.e. browser clients).
+        "MCP_ALLOWED_ORIGIN_HOSTNAMES": "gmail-mcp.jakub-mikolaj-pruszynski.workers.dev,claude.ai,claude.com",
+        "MCP_LEGACY_MODE": "stateless",
+        "MCP_MAX_REQUEST_BYTES": "1048576",
+
+        "AUTH_ENABLED": "true",
+        "AUTH_STRATEGY": "oauth",
+        "PROVIDER_ACCOUNTS_URL": "https://accounts.google.com",
+        "OAUTH_AUTHORIZATION_URL": "https://accounts.google.com/o/oauth2/v2/auth",
+        "OAUTH_TOKEN_URL": "https://oauth2.googleapis.com/token",
+        "OAUTH_REVOCATION_URL": "https://oauth2.googleapis.com/revoke",
+        "OAUTH_SCOPES": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify",
+        "OAUTH_EXTRA_AUTH_PARAMS": "access_type=offline&prompt=consent",
+
+        // This is the URI Google redirects back to. It MUST also be registered
+        // verbatim as an Authorized redirect URI on the Google OAuth client.
+        "OAUTH_REDIRECT_URI": "https://gmail-mcp.jakub-mikolaj-pruszynski.workers.dev/oauth/callback",
+
+        // Which redirect_uri an MCP *client* may ask the proxy to send it back
+        // to (src/shared/oauth/flow.ts isAllowedRedirect). The loopback
+        // exemption there is development-only, so production entries are
+        // matched literally on protocol//host/pathname -- with the exception of
+        // ":*" port wildcards, which are honoured for loopback hosts only.
+        //
+        // Hermes pins its OAuth callback to ports 27890-27894 when it uses a
+        // Client ID Metadata Document, which it does because this server
+        // advertises client_id_metadata_document_supported (CIMD_ENABLED).
+        // Both host spellings are covered by the loopback port wildcards.
+        "OAUTH_REDIRECT_ALLOW_ALL": "false",
+        "OAUTH_REDIRECT_ALLOWLIST": "http://127.0.0.1:*/callback,http://localhost:*/callback,http://127.0.0.1:*/oauth/callback,http://localhost:*/oauth/callback,https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback,https://gmail-mcp.jakub-mikolaj-pruszynski.workers.dev/oauth/callback",
+
+        "CIMD_ENABLED": "true",
+        "LOG_LEVEL": "info"
+      },
+
+      "kv_namespaces": [
+        {
+          "binding": "TOKENS",
+          "id": "a983fa8f17b5447596033dabdd009edd"
+        }
+      ]
     }
   }
 }
